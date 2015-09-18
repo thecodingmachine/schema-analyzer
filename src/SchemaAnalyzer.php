@@ -81,9 +81,16 @@ class SchemaAnalyzer
             $fkColumnNames[$fkColumns[0]] = true;
         }
 
-        // Let's check that the third column (the ID is NOT a foreign key)
-        if (count($columns) == 3 && isset($fkColumnNames[$pkColumns[0]])) {
-            return false;
+        if (count($columns) == 3) {
+            // Let's check that the third column (the ID is NOT a foreign key)
+            if (isset($fkColumnNames[$pkColumns[0]])) {
+                return false;
+            }
+
+            // Let's check that the primary key is autoincremented
+            if (!$table->getColumn($pkColumns[0])->getAutoincrement()) {
+                return false;
+            }
         }
 
         return true;

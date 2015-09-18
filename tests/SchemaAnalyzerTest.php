@@ -64,7 +64,7 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $schema = $this->getBaseSchema();
 
         $role_right = $schema->createTable("role_right");
-        $role_right->addColumn("id", "integer", array("unsigned" => true));
+        $role_right->addColumn("id", "integer", array("unsigned" => true, "autoincrement" => true));
         $role_right->addColumn("role_id", "integer", array("unsigned" => true));
         $role_right->addColumn("right_id", "integer", array("unsigned" => true));
 
@@ -82,11 +82,29 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         }
     }
 
+    public function testJointureTableDetectionWith3ColumnsNoAutoincrement() {
+        $schema = $this->getBaseSchema();
+
+        $role_right = $schema->createTable("role_right");
+        $role_right->addColumn("id", "integer", array("unsigned" => true, "autoincrement" => false));
+        $role_right->addColumn("role_id", "integer", array("unsigned" => true));
+        $role_right->addColumn("right_id", "integer", array("unsigned" => true));
+
+        $role_right->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->setPrimaryKey(["id"]);
+
+        $schemaAnalyzer = new SchemaAnalyzer($schema);
+        $junctionTables = $schemaAnalyzer->detectJunctionTables();
+
+        $this->assertCount(0, $junctionTables);
+    }
+
     public function testJointureTableDetectionWith4Columns() {
         $schema = $this->getBaseSchema();
 
         $role_right = $schema->createTable("role_right");
-        $role_right->addColumn("id", "integer", array("unsigned" => true));
+        $role_right->addColumn("id", "integer", array("unsigned" => true, "autoincrement" => true));
         $role_right->addColumn("role_id", "integer", array("unsigned" => true));
         $role_right->addColumn("right_id", "integer", array("unsigned" => true));
         $role_right->addColumn("label", "string", array("length" => 32));
@@ -140,7 +158,7 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $schema = $this->getBaseSchema();
 
         $role_right = $schema->createTable("role_right");
-        $role_right->addColumn("id", "integer", array("unsigned" => true));
+        $role_right->addColumn("id", "integer", array("unsigned" => true, "autoincrement" => true));
         $role_right->addColumn("role_id", "integer", array("unsigned" => true));
         $role_right->addColumn("right_id", "integer", array("unsigned" => true));
 
