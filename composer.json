@@ -1,0 +1,25 @@
+{
+    "name": "mouf/schema-analyzer",
+    "type": "library",
+    "description": "A package that offers utility tools to analyze database schemas (on top of Doctrine DBAL)",
+    "license": "MIT",
+    "autoload": {
+        "psr-4": {
+            "Mouf\\Database\\SchemaAnalyzer\\": "src/"
+        }
+    },
+    "autoload-dev": {
+        "psr-4": {
+            "Mouf\\Database\\SchemaAnalyzer\\": "src/"
+        }
+    },
+    "require": {
+        "clue/graph": "~0.9.0",
+        "doctrine/dbal": "~2.4",
+        "graphp/algorithms": "~0.8.0"
+    },
+    "require-dev": {
+        "phpunit/phpunit": "~4.0",
+        "satooshi/php-coveralls": "dev-master"
+    }
+}
