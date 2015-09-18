@@ -171,5 +171,59 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
 
         $this->assertCount(0, $junctionTables);
     }
+
+    public function testShortestPathInJointure() {
+        $schema = $this->getBaseSchema();
+
+        $role_right = $schema->createTable("role_right");
+        $role_right->addColumn("role_id", "integer", array("unsigned" => true));
+        $role_right->addColumn("right_id", "integer", array("unsigned" => true));
+        $role_right->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->setPrimaryKey(["role_id", "right_id"]);
+
+        $schemaAnalyzer = new SchemaAnalyzer($schema);
+
+        $fks = $schemaAnalyzer->getShortestPath("role", "right");
+
+        $this->assertCount(2, $fks);
+        $this->assertEquals("role_right", $fks[0]->getLocalTable()->getName());
+        $this->assertEquals("role", $fks[0]->getForeignTableName());
+        $this->assertEquals("role_right", $fks[1]->getLocalTable()->getName());
+        $this->assertEquals("right", $fks[1]->getForeignTableName());
+
+        $fks = $schemaAnalyzer->getShortestPath("right", "role");
+
+        $this->assertCount(2, $fks);
+        $this->assertEquals("role_right", $fks[0]->getLocalTable()->getName());
+        $this->assertEquals("right", $fks[0]->getForeignTableName());
+        $this->assertEquals("role_right", $fks[1]->getLocalTable()->getName());
+        $this->assertEquals("role", $fks[1]->getForeignTableName());
+    }
+
+    public function testShortestPathInLine() {
+        $schema = $this->getBaseSchema();
+
+        $role_right = $schema->createTable("role_right");
+        $role_right->addColumn("role_id", "integer", array("unsigned" => true));
+        $role_right->addColumn("right_id", "integer", array("unsigned" => true));
+        $role_right->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->setPrimaryKey(["role_id", "right_id"]);
+
+        $schemaAnalyzer = new SchemaAnalyzer($schema);
+
+        $fks = $schemaAnalyzer->getShortestPath("role", "role_right");
+
+        $this->assertCount(1, $fks);
+        $this->assertEquals("role_right", $fks[0]->getLocalTable()->getName());
+        $this->assertEquals("role", $fks[0]->getForeignTableName());
+
+        $fks = $schemaAnalyzer->getShortestPath("role_right", "role");
+
+        $this->assertCount(1, $fks);
+        $this->assertEquals("role_right", $fks[0]->getLocalTable()->getName());
+        $this->assertEquals("role", $fks[0]->getForeignTableName());
+    }
 }
 

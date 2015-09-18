@@ -1,8 +1,13 @@
 <?php
+
 namespace Mouf\Database\SchemaAnalyzer;
+
+use Doctrine\DBAL\Schema\ForeignKeyConstraint;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
+use Fhaculty\Graph\Edge\Base;
 use Fhaculty\Graph\Graph;
+use Graphp\Algorithms\ShortestPath\Dijkstra;
 
 /**
  * This class can analyze a database model.
@@ -33,25 +38,28 @@ class SchemaAnalyzer
      * Detect all junctions tables in the schema.
      * A table is a junction table if:
      * - it has exactly 2 foreign keys
-     * - it has only 2 columns (or 3 columns if the third one is an autoincremented primary key)
+     * - it has only 2 columns (or 3 columns if the third one is an autoincremented primary key).
      *
      *
      * @return Table[]
      */
-    public function detectJunctionTables() {
-        return array_filter($this->schema->getTables(), [$this, "isJunctionTable"]);
+    public function detectJunctionTables()
+    {
+        return array_filter($this->schema->getTables(), [$this, 'isJunctionTable']);
     }
 
     /**
      * Returns true if $table is a junction table.
      * I.e:
      * - it must have exactly 2 foreign keys
-     * - it must have only 2 columns (or 3 columns if the third one is an autoincremented primary key)
+     * - it must have only 2 columns (or 3 columns if the third one is an autoincremented primary key).
      *
      * @param Table $table
+     *
      * @return bool
      */
-    private function isJunctionTable(Table $table) {
+    private function isJunctionTable(Table $table)
+    {
         $foreignKeys = $table->getForeignKeys();
         if (count($foreignKeys) != 2) {
             return false;
@@ -99,15 +107,57 @@ class SchemaAnalyzer
     /**
      * Get the shortest path between 2 tables.
      *
-     * @param $fromTable
-     * @param $toTable
+     * @param string $fromTable
+     * @param string $toTable
+     *
+     * @return ForeignKeyConstraint[]
      */
-    public function getShortestPath($fromTable, $toTable) {
+    public function getShortestPath($fromTable, $toTable)
+    {
         $graph = $this->buildSchemaGraph();
-        // TODO
+
+        $dijkstra = new Dijkstra($graph->getVertex($fromTable));
+        $walk = $dijkstra->getWalkTo($graph->getVertex($toTable));
+
+        $foreignKeys = [];
+
+        $currentTable = $fromTable;
+
+        foreach ($walk->getEdges() as $edge) {
+            /* @var $edge Base */
+
+            if ($fk = $edge->getAttribute('fk')) {
+                /* @var $fk ForeignKeyConstraint */
+                $foreignKeys[] = $fk;
+                if ($fk->getForeignTableName() == $currentTable) {
+                    $currentTable = $fk->getLocalTable()->getName();
+                } else {
+                    $currentTable = $fk->getForeignTableName();
+                }
+            } elseif ($junctionTable = $edge->getAttribute('junction')) {
+                /* @var $junctionTable Table */
+                $junctionFks = array_values($junctionTable->getForeignKeys());
+                // We need to order the 2 FKs. The first one is the one that has a common point with the current table.
+                $fk = $junctionFks[0];
+                if ($fk->getForeignTableName() == $currentTable) {
+                    $foreignKeys[] = $fk;
+                    $foreignKeys[] = $junctionFks[1];
+                } else {
+                    $foreignKeys[] = $junctionFks[1];
+                    $foreignKeys[] = $fk;
+                }
+            } else {
+                // @codeCoverageIgnoreStart
+                throw new SchemaAnalyzerException('Unexpected edge. We should have a fk or a junction attribute.');
+                // @codeCoverageIgnoreEnd
+            }
+        }
+
+        return $foreignKeys;
     }
 
-    public function buildSchemaGraph() {
+    private function buildSchemaGraph()
+    {
         $graph = new Graph();
 
         // First, let's create all the vertex
@@ -121,7 +171,7 @@ class SchemaAnalyzer
                 // Create an undirected edge, with weight = 1
                 $edge = $graph->getVertex($table->getName())->createEdge($graph->getVertex($fk->getForeignTableName()));
                 $edge->setWeight(self::$WEIGHT_FK);
-                $edge->getAttributeBag()->setAttribute("fk", $fk);
+                $edge->getAttributeBag()->setAttribute('fk', $fk);
             }
         }
 
@@ -132,9 +182,9 @@ class SchemaAnalyzer
                 $tables[] = $fk->getForeignTableName();
             }
 
-            $edge = $graph->getVertex($tables[0]->getName())->createEdge($graph->getVertex($tables[1]->getName()));
+            $edge = $graph->getVertex($tables[0])->createEdge($graph->getVertex($tables[1]));
             $edge->setWeight(self::$WEIGHT_JOINTURE_TABLE);
-            $edge->getAttributeBag()->setAttribute("junction", $junctionTable);
+            $edge->getAttributeBag()->setAttribute('junction', $junctionTable);
         }
 
         return $graph;
