@@ -14,7 +14,7 @@ use Graphp\Algorithms\ShortestPath\Dijkstra;
 
 /**
  * This class can analyze a database model.
- * In this class you will find:
+ * In this class you will find.
  *
  * - Functions to automatically detect **junction tables**
  * - Functions to compute the shortest path between 2 tables based on the relationships stored in the schema.
@@ -66,6 +66,7 @@ class SchemaAnalyzer
     /**
      * Detect all junctions tables in the schema.
      * A table is a junction table if:
+     *
      * - it has exactly 2 foreign keys
      * - it has only 2 columns (or 3 columns if the third one is an autoincremented primary key).
      *
@@ -86,6 +87,7 @@ class SchemaAnalyzer
     /**
      * Returns true if $table is a junction table.
      * I.e:
+     *
      * - it must have exactly 2 foreign keys
      * - it must have only 2 columns (or 3 columns if the third one is an autoincremented primary key).
      *

@@ -259,5 +259,31 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $r2 = $this->assertNotFalse($cache->fetch('mykey_shortest_role_right```role'));
         $this->assertTrue($r1 === $r2);
     }
+
+    /**
+     * @expectedException \Mouf\Database\SchemaAnalyzer\ShortestPathAmbiguityException
+     */
+    public function testAmbiguityException() {
+        $schema = $this->getBaseSchema();
+
+        $role_right = $schema->createTable("role_right");
+        $role_right->addColumn("role_id", "integer", array("unsigned" => true));
+        $role_right->addColumn("right_id", "integer", array("unsigned" => true));
+        $role_right->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->setPrimaryKey(["role_id", "right_id"]);
+
+        $role_right2 = $schema->createTable("role_right2");
+        $role_right2->addColumn("role_id", "integer", array("unsigned" => true));
+        $role_right2->addColumn("right_id", "integer", array("unsigned" => true));
+        $role_right2->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right2->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right2->setPrimaryKey(["role_id", "right_id"]);
+
+        $schemaAnalyzer = new SchemaAnalyzer($schema);
+
+        $schemaAnalyzer->getShortestPath("role", "right");
+    }
+
 }
 
