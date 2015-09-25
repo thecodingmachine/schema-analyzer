@@ -150,7 +150,6 @@ class SchemaAnalyzer
     public function getShortestPath($fromTable, $toTable)
     {
         $cacheKey = $this->cachePrefix."_shortest_".$fromTable."```".$toTable;
-        $path = false;
         $path = $this->cache->fetch($cacheKey);
         if ($path === false) {
             $path = $this->getShortestPathWithoutCache($fromTable, $toTable);
