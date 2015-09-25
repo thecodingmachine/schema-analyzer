@@ -34,6 +34,11 @@ class SchemaAnalyzer
     private $schema;
 
     /**
+     * @var Cache|null
+     */
+    private $cache;
+
+    /**
      * @var string
      */
     private $cachePrefix;
