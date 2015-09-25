@@ -31,14 +31,14 @@ between minor versions.
 
 ## Detecting junction tables
 
-The starting point is always a DBAL Schema. Pass the schema to SchemaAnalyzer, and then, simply call the functions.
+The starting point is always a DBAL Schema. Pass the schema manager to SchemaAnalyzer, and then, simply call the functions.
 
 ```php
 // $conn is the DBAL connection.
-$schema = $conn->getSchemaManager()->createSchema();
+$schemaAnalyzer = new SchemaAnalyzer($conn->getSchemaManager());
 
 // Let's detect all junctions tables
-$tables = $schema->detectJunctionTables();
+$tables = $schemaAnalyzer->detectJunctionTables();
 // This will return an array of Doctrine\DBAL\Schema\Table objects
 ```
 
@@ -59,10 +59,10 @@ Internals:
 
 ```php
 // $conn is the DBAL connection.
-$schema = $conn->getSchemaManager()->createSchema();
+$schemaAnalyzer = new SchemaAnalyzer($conn->getSchemaManager());
 
 // Let's detect the shortest path between 2 tables:
-$fks = $schema->getShortestPath("users", "rights");
+$fks = $schemaAnalyzer->getShortestPath("users", "rights");
 // This will return an array of Doctrine\DBAL\Schema\ForeignKeyConstraint objects
 ```
 

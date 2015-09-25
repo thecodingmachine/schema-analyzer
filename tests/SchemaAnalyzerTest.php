@@ -1,6 +1,7 @@
 <?php
 namespace Mouf\Database\SchemaAnalyzer;
 
+use Doctrine\Common\Cache\ArrayCache;
 use Doctrine\DBAL\Schema\Schema;
 
 class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
@@ -22,7 +23,7 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         return $schema;
     }
 
-    public function testJointureTableDetectionWith2Columns() {
+    private function getCompleteSchemaManager() {
         $schema = $this->getBaseSchema();
 
         $role_right = $schema->createTable("role_right");
@@ -32,7 +33,13 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
         $role_right->setPrimaryKey(["role_id", "right_id"]);
 
-        $schemaAnalyzer = new SchemaAnalyzer($schema);
+        return new StubSchemaManager($schema);
+    }
+
+    public function testJointureTableDetectionWith2Columns() {
+        $schemaManager = $this->getCompleteSchemaManager();
+
+        $schemaAnalyzer = new SchemaAnalyzer($schemaManager);
         $junctionTables = $schemaAnalyzer->detectJunctionTables();
 
         $this->assertCount(1, $junctionTables);
@@ -54,7 +61,7 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
         $role_right->setPrimaryKey(["role_id", "right_id"]);
 
-        $schemaAnalyzer = new SchemaAnalyzer($schema);
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
         $junctionTables = $schemaAnalyzer->detectJunctionTables();
 
         $this->assertCount(0, $junctionTables);
@@ -72,7 +79,7 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
         $role_right->setPrimaryKey(["id"]);
 
-        $schemaAnalyzer = new SchemaAnalyzer($schema);
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
         $junctionTables = $schemaAnalyzer->detectJunctionTables();
 
         $this->assertCount(1, $junctionTables);
@@ -94,7 +101,7 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
         $role_right->setPrimaryKey(["id"]);
 
-        $schemaAnalyzer = new SchemaAnalyzer($schema);
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
         $junctionTables = $schemaAnalyzer->detectJunctionTables();
 
         $this->assertCount(0, $junctionTables);
@@ -113,7 +120,7 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
         $role_right->setPrimaryKey(["id"]);
 
-        $schemaAnalyzer = new SchemaAnalyzer($schema);
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
         $junctionTables = $schemaAnalyzer->detectJunctionTables();
 
         $this->assertCount(0, $junctionTables);
@@ -130,7 +137,7 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
         $role_right->setPrimaryKey(["role_id"]);
 
-        $schemaAnalyzer = new SchemaAnalyzer($schema);
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
         $junctionTables = $schemaAnalyzer->detectJunctionTables();
 
         $this->assertCount(0, $junctionTables);
@@ -148,7 +155,7 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
         $role_right->setPrimaryKey(["role_id", "right_id"]);
 
-        $schemaAnalyzer = new SchemaAnalyzer($schema);
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
         $junctionTables = $schemaAnalyzer->detectJunctionTables();
 
         $this->assertCount(0, $junctionTables);
@@ -166,7 +173,7 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
         $role_right->setPrimaryKey(["id"]);
 
-        $schemaAnalyzer = new SchemaAnalyzer($schema);
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
         $junctionTables = $schemaAnalyzer->detectJunctionTables();
 
         $this->assertCount(0, $junctionTables);
@@ -182,7 +189,7 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
         $role_right->setPrimaryKey(["role_id", "right_id"]);
 
-        $schemaAnalyzer = new SchemaAnalyzer($schema);
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
 
         $fks = $schemaAnalyzer->getShortestPath("role", "right");
 
@@ -211,7 +218,7 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
         $role_right->setPrimaryKey(["role_id", "right_id"]);
 
-        $schemaAnalyzer = new SchemaAnalyzer($schema);
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
 
         $fks = $schemaAnalyzer->getShortestPath("role", "role_right");
 
@@ -224,6 +231,33 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $this->assertCount(1, $fks);
         $this->assertEquals("role_right", $fks[0]->getLocalTable()->getName());
         $this->assertEquals("role", $fks[0]->getForeignTableName());
+    }
+
+    /**
+     * @expectedException \Mouf\Database\SchemaAnalyzer\SchemaAnalyzerException
+     */
+    public function testWrongConstructor() {
+        $schema = $this->getBaseSchema();
+        new SchemaAnalyzer(new StubSchemaManager($schema), new ArrayCache());
+    }
+
+    public function testCache() {
+        $cache = new ArrayCache();
+
+        $schemaManager = $this->getCompleteSchemaManager();
+
+        $schemaAnalyzer = new SchemaAnalyzer($schemaManager, $cache, "mykey");
+        $schemaAnalyzer->detectJunctionTables();
+
+        $this->assertNotFalse($cache->fetch('mykey_schema'));
+        $this->assertNotFalse($cache->fetch('mykey_junctiontables'));
+        $r1 = $schemaAnalyzer->getShortestPath("role_right", "role");
+        $r2 = $schemaAnalyzer->getShortestPath("role_right", "role");
+        $this->assertTrue($r1 === $r2);
+
+        $r1 = $this->assertNotFalse($cache->fetch('mykey_shortest_role_right```role'));
+        $r2 = $this->assertNotFalse($cache->fetch('mykey_shortest_role_right```role'));
+        $this->assertTrue($r1 === $r2);
     }
 }
 

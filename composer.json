@@ -10,7 +10,7 @@
     },
     "autoload-dev": {
         "psr-4": {
-            "Mouf\\Database\\SchemaAnalyzer\\": "src/"
+            "Mouf\\Database\\SchemaAnalyzer\\": "tests/"
         }
     },
     "require": {
