@@ -2,6 +2,9 @@
 
 namespace Mouf\Database\SchemaAnalyzer;
 
+use Doctrine\Common\Cache\Cache;
+use Doctrine\Common\Cache\VoidCache;
+use Doctrine\DBAL\Schema\AbstractSchemaManager;
 use Doctrine\DBAL\Schema\ForeignKeyConstraint;
 use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
@@ -22,16 +25,42 @@ class SchemaAnalyzer
     private static $WEIGHT_JOINTURE_TABLE = 1.5;
 
     /**
+     * @var AbstractSchemaManager
+     */
+    private $schemaManager;
+
+    /**
      * @var Schema
      */
     private $schema;
 
     /**
-     * @param Schema $schema
+     * @var Cache
      */
-    public function __construct(Schema $schema)
+    private $cache;
+
+    /**
+     * @var string
+     */
+    private $cachePrefix;
+
+    /**
+     * @param AbstractSchemaManager $schemaManager
+     * @param Cache|null $cache The Doctrine cache service to use to cache results (optional)
+     * @param string|null $schemaCacheKey The unique identifier for the schema manager. Compulsory if cache is set.
+     */
+    public function __construct(AbstractSchemaManager $schemaManager, Cache $cache = null, $schemaCacheKey = null)
     {
-        $this->schema = $schema;
+        $this->schemaManager = $schemaManager;
+        if (empty($schemaCacheKey) && $cache) {
+            throw new SchemaAnalyzerException('You must provide a schema cache key if you configure SchemaAnalyzer with cache support.');
+        }
+        if ($cache) {
+            $this->cache = $cache;
+        } else {
+            $this->cache = new VoidCache();
+        }
+        $this->cachePrefix = $schemaCacheKey;
     }
 
     /**
@@ -45,7 +74,13 @@ class SchemaAnalyzer
      */
     public function detectJunctionTables()
     {
-        return array_filter($this->schema->getTables(), [$this, 'isJunctionTable']);
+        $junctionTablesKey = $this->cachePrefix."_junctiontables";
+        $junctionTables = $this->cache->fetch($junctionTablesKey);
+        if ($junctionTables === false) {
+            $junctionTables = array_filter($this->getSchema()->getTables(), [$this, 'isJunctionTable']);
+            $this->cache->save($junctionTablesKey, $junctionTables);
+        }
+        return $junctionTables;
     }
 
     /**
@@ -109,10 +144,29 @@ class SchemaAnalyzer
      *
      * @param string $fromTable
      * @param string $toTable
-     *
-     * @return ForeignKeyConstraint[]
+     * @return \Doctrine\DBAL\Schema\ForeignKeyConstraint[]
+     * @throws SchemaAnalyzerException
      */
     public function getShortestPath($fromTable, $toTable)
+    {
+        $cacheKey = $this->cachePrefix."_shortest_".$fromTable."```".$toTable;
+        $path = $this->cache->fetch($cacheKey);
+        if ($path === false) {
+            $path = $this->getShortestPathWithoutCache($fromTable, $toTable);
+            $this->cache->save($cacheKey, $path);
+        }
+        return $path;
+    }
+
+    /**
+     * Get the shortest path between 2 tables.
+     *
+     * @param string $fromTable
+     * @param string $toTable
+     * @return \Doctrine\DBAL\Schema\ForeignKeyConstraint[]
+     * @throws SchemaAnalyzerException
+     */
+    private function getShortestPathWithoutCache($fromTable, $toTable)
     {
         $graph = $this->buildSchemaGraph();
 
@@ -161,12 +215,12 @@ class SchemaAnalyzer
         $graph = new Graph();
 
         // First, let's create all the vertex
-        foreach ($this->schema->getTables() as $table) {
+        foreach ($this->getSchema()->getTables() as $table) {
             $graph->createVertex($table->getName());
         }
 
         // Then, let's create all the edges
-        foreach ($this->schema->getTables() as $table) {
+        foreach ($this->getSchema()->getTables() as $table) {
             foreach ($table->getForeignKeys() as $fk) {
                 // Create an undirected edge, with weight = 1
                 $edge = $graph->getVertex($table->getName())->createEdge($graph->getVertex($fk->getForeignTableName()));
@@ -189,4 +243,21 @@ class SchemaAnalyzer
 
         return $graph;
     }
+
+    /**
+     * Returns the schema (from the schema manager or the cache if needed)
+     * @return Schema
+     */
+    private function getSchema() {
+        if ($this->schema === null) {
+            $schemaKey = $this->cachePrefix."_schema";
+            $this->schema = $this->cache->fetch($schemaKey);
+            if (empty($this->schema)) {
+                $this->schema = $this->schemaManager->createSchema();
+                $this->cache->save($schemaKey, $this->schema);
+            }
+        }
+        return $this->schema;
+    }
+
 }
