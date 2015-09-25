@@ -3,6 +3,7 @@
 namespace Mouf\Database\SchemaAnalyzer;
 
 use Doctrine\Common\Cache\Cache;
+use Doctrine\Common\Cache\VoidCache;
 use Doctrine\DBAL\Schema\AbstractSchemaManager;
 use Doctrine\DBAL\Schema\ForeignKeyConstraint;
 use Doctrine\DBAL\Schema\Schema;
@@ -51,11 +52,15 @@ class SchemaAnalyzer
     public function __construct(AbstractSchemaManager $schemaManager, Cache $cache = null, $schemaCacheKey = null)
     {
         $this->schemaManager = $schemaManager;
-        $this->cache = $cache;
-        $this->cachePrefix = $schemaCacheKey;
         if (empty($schemaCacheKey) && $cache) {
             throw new SchemaAnalyzerException('You must provide a schema cache key if you configure SchemaAnalyzer with cache support.');
         }
+        if ($cache) {
+            $this->cache = $cache;
+        } else {
+            $this->cache = new VoidCache();
+        }
+        $this->cachePrefix = $schemaCacheKey;
     }
 
     /**
@@ -70,15 +75,10 @@ class SchemaAnalyzer
     public function detectJunctionTables()
     {
         $junctionTablesKey = $this->cachePrefix."_junctiontables";
-        $junctionTables = false;
-        if ($this->cache) {
-            $junctionTables = $this->cache->fetch($junctionTablesKey);
-        }
+        $junctionTables = $this->cache->fetch($junctionTablesKey);
         if ($junctionTables === false) {
             $junctionTables = array_filter($this->getSchema()->getTables(), [$this, 'isJunctionTable']);
-            if ($this->cache) {
-                $this->cache->save($junctionTablesKey, $junctionTables);
-            }
+            $this->cache->save($junctionTablesKey, $junctionTables);
         }
         return $junctionTables;
     }
@@ -151,14 +151,10 @@ class SchemaAnalyzer
     {
         $cacheKey = $this->cachePrefix."_shortest_".$fromTable."```".$toTable;
         $path = false;
-        if ($this->cache) {
-            $path = $this->cache->fetch($cacheKey);
-        }
+        $path = $this->cache->fetch($cacheKey);
         if ($path === false) {
             $path = $this->getShortestPathWithoutCache($fromTable, $toTable);
-            if ($this->cache) {
-                $this->cache->save($cacheKey, $path);
-            }
+            $this->cache->save($cacheKey, $path);
         }
         return $path;
     }
@@ -256,14 +252,10 @@ class SchemaAnalyzer
     private function getSchema() {
         if ($this->schema === null) {
             $schemaKey = $this->cachePrefix."_schema";
-            if ($this->cache) {
-                $this->schema = $this->cache->fetch($schemaKey);
-            }
+            $this->schema = $this->cache->fetch($schemaKey);
             if (empty($this->schema)) {
                 $this->schema = $this->schemaManager->createSchema();
-                if ($this->cache) {
-                    $this->cache->save($schemaKey, $this->schema);
-                }
+                $this->cache->save($schemaKey, $this->schema);
             }
         }
         return $this->schema;
