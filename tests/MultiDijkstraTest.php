@@ -137,4 +137,60 @@ class MultiDijkstraTest extends \PHPUnit_Framework_TestCase
     private function hasVertex(Edge\Base $edge, Vertex $vertex) {
         return $edge->getVerticesStart()->getVertexFirst() === $vertex || $edge->getVerticesTarget()->getVertexFirst() === $vertex;
     }
+
+    public function testDijkstraAmbiguity2() {
+        $graph = new Graph();
+
+        $a = $graph->createVertex("a");
+        $b = $graph->createVertex("b");
+        $c = $graph->createVertex("c");
+        $d = $graph->createVertex("d");
+
+        $a->createEdge($b)->setWeight(12);
+        $a->createEdge($c)->setWeight(42);
+        $b->createEdge($d)->setWeight(42);
+        $c->createEdge($d)->setWeight(12);
+
+        $predecessors = MultiDijkstra::findShortestPaths($a, $d);
+
+        $paths = MultiDijkstra::getAllPossiblePathsFromPredecesArray($a, $d, $predecessors);
+
+        $this->assertCount(2, $paths);
+        $this->assertCount(2, $paths[0]);
+        $this->assertCount(2, $paths[1]);
+
+        $this->assertTrue($this->hasVertex($paths[0][0], $a));
+        $this->assertTrue($this->hasVertex($paths[0][0], $b));
+        $this->assertTrue($this->hasVertex($paths[0][1], $b));
+        $this->assertTrue($this->hasVertex($paths[0][1], $d));
+
+        $this->assertTrue($this->hasVertex($paths[1][0], $a));
+        $this->assertTrue($this->hasVertex($paths[1][0], $c));
+        $this->assertTrue($this->hasVertex($paths[1][1], $c));
+        $this->assertTrue($this->hasVertex($paths[1][1], $d));
+    }
+
+    public function testDijkstraAmbiguity3() {
+        $graph = new Graph();
+
+        $a = $graph->createVertex("a");
+        $b = $graph->createVertex("b");
+        $c = $graph->createVertex("c");
+        $d = $graph->createVertex("d");
+        $e = $graph->createVertex("e");
+
+        $a->createEdge($b)->setWeight(12);
+        $a->createEdge($c)->setWeight(42);
+        $b->createEdge($d)->setWeight(42);
+        $c->createEdge($d)->setWeight(12);
+        $d->createEdge($e)->setWeight(1);
+        $e->createEdge($d)->setWeight(1);
+
+        $predecessors = MultiDijkstra::findShortestPaths($a, $e);
+
+        $paths = MultiDijkstra::getAllPossiblePathsFromPredecesArray($a, $e, $predecessors);
+
+        $this->assertCount(4, $paths);
+    }
+
 }

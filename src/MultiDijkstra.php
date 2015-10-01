@@ -160,4 +160,42 @@ class MultiDijkstra
 
         return array_reverse($edges);
     }
+
+    /**
+     * @param Vertex $startVertex
+     * @param Vertex $endVertex
+     * @param array $predecesEdgesArray
+     * @return Edge\Base[][]
+     */
+    public static function getAllPossiblePathsFromPredecesArray(Vertex $startVertex, Vertex $endVertex, array $predecesEdgesArray) {
+        $edgesPaths = [];
+
+        if ($startVertex === $endVertex) {
+            return [];
+        }
+
+        $predecessorEdges = $predecesEdgesArray[$endVertex->getId()];
+
+        foreach ($predecessorEdges as $edge) {
+            if ($endVertex === $edge->getVerticesStart()->getVertexFirst()) {
+                $nextVertex = $edge->getVerticesTarget()->getVertexFirst();
+            } else {
+                $nextVertex = $edge->getVerticesStart()->getVertexFirst();
+            }
+
+            $edgesPaths2 = self::getAllPossiblePathsFromPredecesArray($startVertex, $nextVertex, $predecesEdgesArray);
+            if ($edgesPaths2) {
+                foreach ($edgesPaths2 as &$edges2) {
+                    $edges2[] = $edge;
+                }
+            } else {
+                $edgesPaths2 = [ [ $edge ] ];
+            }
+
+
+            $edgesPaths = array_merge($edgesPaths, $edgesPaths2);
+        }
+
+        return $edgesPaths;
+    }
 }

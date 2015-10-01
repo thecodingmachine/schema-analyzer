@@ -170,14 +170,14 @@ class SchemaAnalyzer
     {
         $graph = $this->buildSchemaGraph();
 
-        $dijkstra = new Dijkstra($graph->getVertex($fromTable));
-        $walk = $dijkstra->getWalkTo($graph->getVertex($toTable));
+        $predecessors = MultiDijkstra::findShortestPaths($graph->getVertex($fromTable), $graph->getVertex($toTable));
+        $edges = MultiDijkstra::getCheapestPathFromPredecesArray($graph->getVertex($fromTable), $graph->getVertex($toTable), $predecessors);
 
         $foreignKeys = [];
 
         $currentTable = $fromTable;
 
-        foreach ($walk->getEdges() as $edge) {
+        foreach ($edges as $edge) {
             /* @var $edge Base */
 
             if ($fk = $edge->getAttribute('fk')) {
