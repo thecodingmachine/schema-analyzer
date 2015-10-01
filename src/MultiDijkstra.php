@@ -16,13 +16,14 @@ class MultiDijkstra
      * Get all edges on shortest path for this vertex
      *
      * @throws UnexpectedValueException when encountering an Edge with negative weight
+     * @throws MultiDijkstraNoPathException
      * @return array<string, Vertex[]> where key is the destination vertex name and value is an array of possible origin vertex
      */
     public static function findShortestPaths(Vertex $startVertex, Vertex $endVertex)
     {
         $totalCostOfCheapestPathTo  = [];
         // start node distance
-        $totalCostOfCheapestPathTo[$startVertex->getId()] = INF;
+        $totalCostOfCheapestPathTo[$startVertex->getId()] = 0;
 
         $endVertexId = $endVertex->getId();
 
@@ -33,10 +34,9 @@ class MultiDijkstra
 
         // predecessors
         $predecesEdgeOfCheapestPathTo  = [];
-        //$predecesVertexOfCheapestPathTo[$startVertex->getId()] = [ $startVertex ];
 
         // mark vertices when their cheapest path has been found
-        $usedVertices  = [];
+        $usedVertices[$startVertex->getId()]  = true;
 
         $isFirst = true;
 
@@ -46,26 +46,30 @@ class MultiDijkstra
             $currentVertex = NULL;
             $currentVertexId = NULL;
             $isEmpty = false;
-            do {
-                // if the priority queue is empty there are isolated vertices, but the algorithm visited all other vertices
-                if ($cheapestVertex->isEmpty()) {
-                    $isEmpty = true;
-                    break;
-                }
-                // Get cheapest unmarked vertex
-                $cheapestResult = $cheapestVertex->extract();
-                $currentVertex = $cheapestResult['data'];
-                $currentCost = $cheapestResult['priority'];
+            if ($isFirst) {
+                $currentVertex = $startVertex;
+                $currentCost = 0;
                 $currentVertexId = $currentVertex->getId();
-            // Vertices can be in the priority queue multiple times, with different path costs (if vertex is already marked, this is an old unvalid entry)
-            } while (isset($usedVertices[$currentVertexId]));
+            } else {
+                do {
+                    // if the priority queue is empty there are isolated vertices, but the algorithm visited all other vertices
+                    if ($cheapestVertex->isEmpty()) {
+                        $isEmpty = true;
+                        break;
+                    }
+                    // Get cheapest unmarked vertex
+                    $cheapestResult = $cheapestVertex->extract();
+                    $currentVertex = $cheapestResult['data'];
+                    $currentCost = $cheapestResult['priority'];
+                    $currentVertexId = $currentVertex->getId();
+                // Vertices can be in the priority queue multiple times, with different path costs (if vertex is already marked, this is an old unvalid entry)
+                } while (isset($usedVertices[$currentVertexId]));
+            }
 
             // Check premature end condition
             // If the end vertex is marked as done and the next lowest possible weight is bigger than end vertix,
             // we are done processing.
-            if (isset($usedVertices[$endVertexId]) && $totalCostOfCheapestPathTo[$endVertexId] < $currentCost) {
-                break;
-            }
+
 
             // catch "algorithm ends" condition
             if ($isEmpty) {
@@ -74,16 +78,21 @@ class MultiDijkstra
 
             if ($isFirst) {
                 $isFirst = false;
-            } else {
-                // mark this vertex
-                $usedVertices[$currentVertexId] = true;
             }
+
+            // mark this vertex
+            $usedVertices[$currentVertexId] = true;
+
+            if (isset($usedVertices[$endVertexId]) && $totalCostOfCheapestPathTo[$endVertexId] < -$currentCost) {
+                break;
+            }
+
 
             // check for all edges of current vertex if there is a cheaper path (or IN OTHER WORDS: Add reachable nodes from currently added node and refresh the current possible distances)
             foreach ($currentVertex->getEdgesOut() as $edge) {
                 $weight = $edge->getWeight();
                 if ($weight < 0) {
-                    throw new UnexpectedValueException('Djkstra not supported for negative weights - Consider using MooreBellmanFord');
+                    throw new UnexpectedValueException('Dijkstra not supported for negative weights - Consider using MooreBellmanFord');
                 }
 
                 $targetVertex = $edge->getVertexToFrom($currentVertex);
@@ -93,9 +102,9 @@ class MultiDijkstra
                 if (!isset($usedVertices[$targetVertexId])) {
                     // calculate new cost to vertex
                     $newCostsToTargetVertex = $totalCostOfCheapestPathTo[$currentVertexId] + $weight;
-                    if (is_infinite($newCostsToTargetVertex)) {
+                    /*if (is_infinite($newCostsToTargetVertex)) {
                         $newCostsToTargetVertex = $weight;
-                    }
+                    }*/
 
                     if ((!isset($predecesEdgeOfCheapestPathTo[$targetVertexId]))
                            // is the new path cheaper?
@@ -119,9 +128,9 @@ class MultiDijkstra
             }
         }
 
-        /*if ($totalCostOfCheapestPathTo[$startVertex->getId()] === INF) {
-            unset($predecesVertexOfCheapestPathTo[$startVertex->getId()]);
-        }*/
+        if (!isset($totalCostOfCheapestPathTo[$endVertexId])) {
+            throw new MultiDijkstraNoPathException("No path found between vertex '".$startVertex->getId()."' and vertex '".$endVertex->getId()."'");
+        }
 
         // algorithm is done, return resulting edges
         return $predecesEdgeOfCheapestPathTo;
