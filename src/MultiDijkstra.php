@@ -36,7 +36,7 @@ class MultiDijkstra
         $predecesEdgeOfCheapestPathTo  = [];
 
         // mark vertices when their cheapest path has been found
-        $usedVertices[$startVertex->getId()]  = true;
+        $usedVertices = [ $startVertex->getId() => true ];
 
         $isFirst = true;
 
@@ -102,9 +102,6 @@ class MultiDijkstra
                 if (!isset($usedVertices[$targetVertexId])) {
                     // calculate new cost to vertex
                     $newCostsToTargetVertex = $totalCostOfCheapestPathTo[$currentVertexId] + $weight;
-                    /*if (is_infinite($newCostsToTargetVertex)) {
-                        $newCostsToTargetVertex = $weight;
-                    }*/
 
                     if ((!isset($predecesEdgeOfCheapestPathTo[$targetVertexId]))
                            // is the new path cheaper?
