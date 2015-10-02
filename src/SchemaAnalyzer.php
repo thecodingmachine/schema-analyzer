@@ -10,6 +10,7 @@ use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
 use Fhaculty\Graph\Edge\Base;
 use Fhaculty\Graph\Graph;
+use Fhaculty\Graph\Vertex;
 use Graphp\Algorithms\ShortestPath\Dijkstra;
 
 /**
@@ -172,8 +173,15 @@ class SchemaAnalyzer
     {
         $graph = $this->buildSchemaGraph();
 
-        $predecessors = MultiDijkstra::findShortestPaths($graph->getVertex($fromTable), $graph->getVertex($toTable));
-        $edges = MultiDijkstra::getCheapestPathFromPredecesArray($graph->getVertex($fromTable), $graph->getVertex($toTable), $predecessors);
+        try {
+            $predecessors = MultiDijkstra::findShortestPaths($graph->getVertex($fromTable), $graph->getVertex($toTable));
+            $edges = MultiDijkstra::getCheapestPathFromPredecesArray($graph->getVertex($fromTable), $graph->getVertex($toTable), $predecessors);
+        } catch (MultiDijkstraAmbiguityException $e) {
+            // If there is more than 1 short path, let's display this.
+            $paths = MultiDijkstra::getAllPossiblePathsFromPredecesArray($graph->getVertex($fromTable), $graph->getVertex($toTable), $predecessors);
+            $msg = $this->getAmbiguityExceptionMessage($paths, $graph->getVertex($fromTable), $graph->getVertex($toTable));
+            throw new ShortestPathAmbiguityException($msg);
+        }
 
         $foreignKeys = [];
 
@@ -262,4 +270,75 @@ class SchemaAnalyzer
         return $this->schema;
     }
 
+    /**
+     * Returns the full exception message when an ambiguity arises.
+     *
+     * @param Base[][] $paths
+     * @param Vertex $startVertex
+     */
+    private function getAmbiguityExceptionMessage(array $paths, Vertex $startVertex, Vertex $endVertex) {
+        $textPaths = [];
+        $i = 1;
+        foreach ($paths as $path) {
+            $textPaths[] = "Path ".$i.": ".$this->getTextualPath($path, $startVertex);
+            $i++;
+        }
+
+        $msg = sprintf("There are many possible shortest paths between table '%s' and table '%s'\n\n",
+            $startVertex->getId(), $endVertex->getId());
+
+        $msg .= implode("\n\n", $textPaths);
+
+        return $msg;
+    }
+
+    /**
+     * Returns the textual representation of the path.
+     *
+     * @param Base[] $path
+     * @param Vertex $startVertex
+     */
+    private function getTextualPath(array $path, Vertex $startVertex) {
+        $currentVertex = $startVertex;
+        $currentTable = $currentVertex->getId();
+
+        $textPath = $currentTable;
+
+        foreach ($path as $edge) {
+            /* @var $fk ForeignKeyConstraint */
+            if ($fk = $edge->getAttribute('fk')) {
+                if ($fk->getForeignTableName() == $currentTable) {
+                    $currentTable = $fk->getLocalTable()->getName();
+                    $isForward = false;
+                } else {
+                    $currentTable = $fk->getForeignTableName();
+                    $isForward = true;
+                }
+
+                $columns = implode(',', $fk->getLocalColumns());
+
+                $textPath .= " ".(!$isForward?"<":"");
+                $textPath .= "--(".$columns.")--";
+                $textPath .= ($isForward?">":"")." ";
+                $textPath .= $currentTable;
+            } elseif ($junctionTable = $edge->getAttribute('junction')) {
+                /* @var $junctionTable Table */
+                $junctionFks = array_values($junctionTable->getForeignKeys());
+                // We need to order the 2 FKs. The first one is the one that has a common point with the current table.
+                $fk = $junctionFks[0];
+                if ($fk->getForeignTableName() == $currentTable) {
+                    $currentTable = $junctionFks[1]->getForeignTableName();
+                } else {
+                    $currentTable = $fk->getForeignTableName();
+                }
+                $textPath .= " <=(".$junctionTable->getName().")=> ".$currentTable;
+            } else {
+                // @codeCoverageIgnoreStart
+                throw new SchemaAnalyzerException('Unexpected edge. We should have a fk or a junction attribute.');
+                // @codeCoverageIgnoreEnd
+            }
+        }
+
+        return $textPath;
+    }
 }

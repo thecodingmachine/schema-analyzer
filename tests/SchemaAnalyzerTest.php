@@ -260,9 +260,6 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue($r1 === $r2);
     }
 
-    /**
-     * @expectedException \Mouf\Database\SchemaAnalyzer\ShortestPathAmbiguityException
-     */
     public function testAmbiguityException() {
         $schema = $this->getBaseSchema();
 
@@ -280,9 +277,60 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $role_right2->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
         $role_right2->setPrimaryKey(["role_id", "right_id"]);
 
-        $schemaAnalyzer = new SchemaAnalyzer($schema);
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
 
-        $schemaAnalyzer->getShortestPath("role", "right");
+        $exceptionTriggered = false;
+        try {
+            $schemaAnalyzer->getShortestPath("role", "right");
+        } catch (ShortestPathAmbiguityException $e) {
+            $this->assertContains("role <=(role_right)=> right", $e->getMessage());
+            $this->assertContains("role <=(role_right2)=> right", $e->getMessage());
+            $exceptionTriggered = true;
+        }
+        $this->assertTrue($exceptionTriggered);
+
+        $exceptionTriggered = false;
+        try {
+            $schemaAnalyzer->getShortestPath("right", "role");
+        } catch (ShortestPathAmbiguityException $e) {
+            $this->assertContains("right <=(role_right)=> role", $e->getMessage());
+            $this->assertContains("right <=(role_right2)=> role", $e->getMessage());
+            $exceptionTriggered = true;
+        }
+        $this->assertTrue($exceptionTriggered);
+
+    }
+
+    public function testAmbiguityExceptionWithNoJointure() {
+        $schema = $this->getBaseSchema();
+        $right = $schema->getTable("right");
+        $right->addColumn("role_id", "integer", array("unsigned" => true));
+        $right->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+
+        $right->addColumn("role_id2", "integer", array("unsigned" => true));
+        $right->addForeignKeyConstraint($schema->getTable('role'), array("role_id2"), array("id"), array("onUpdate" => "CASCADE"));
+
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
+
+        $exceptionTriggered = false;
+        try {
+            $schemaAnalyzer->getShortestPath("role", "right");
+        } catch (ShortestPathAmbiguityException $e) {
+            $this->assertContains("role <--(role_id)-- right", $e->getMessage());
+            $this->assertContains("role <--(role_id2)-- right", $e->getMessage());
+            $exceptionTriggered = true;
+        }
+        $this->assertTrue($exceptionTriggered);
+
+        $exceptionTriggered = false;
+        try {
+            $schemaAnalyzer->getShortestPath("right", "role");
+        } catch (ShortestPathAmbiguityException $e) {
+            $this->assertContains("right --(role_id)--> role", $e->getMessage());
+            $this->assertContains("right --(role_id2)--> role", $e->getMessage());
+            $exceptionTriggered = true;
+        }
+        $this->assertTrue($exceptionTriggered);
     }
 
 }
