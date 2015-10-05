@@ -24,6 +24,10 @@ class SchemaAnalyzer
     private static $WEIGHT_FK = 1;
     private static $WEIGHT_JOINTURE_TABLE = 1.5;
 
+    const WEIGHT_IMPORTANT = 0.75;
+    const WEIGHT_IRRELEVANT = 2;
+    const WEIGHT_IGNORE = INF;
+
     /**
      * @var AbstractSchemaManager
      */
@@ -43,6 +47,18 @@ class SchemaAnalyzer
      * @var string
      */
     private $cachePrefix;
+
+    /**
+     * Nested arrays containing table => column => cost
+     * @var float[][]
+     */
+    private $alteredCosts = [];
+
+    /**
+     * Array containing table cost
+     * @var float[]
+     */
+    private $alteredTableCosts = [];
 
     /**
      * @param AbstractSchemaManager $schemaManager
@@ -239,7 +255,16 @@ class SchemaAnalyzer
             foreach ($table->getForeignKeys() as $fk) {
                 // Create an undirected edge, with weight = 1
                 $edge = $graph->getVertex($table->getName())->createEdge($graph->getVertex($fk->getForeignTableName()));
-                $edge->setWeight(self::$WEIGHT_FK);
+                if (isset($this->alteredCosts[$fk->getLocalTable()->getName()][implode(',',$fk->getLocalColumns())])) {
+                    $cost = $this->alteredCosts[$fk->getLocalTable()->getName()][implode(',',$fk->getLocalColumns())];
+                } else {
+                    $cost = self::$WEIGHT_FK;
+                }
+                if (isset($this->alteredTableCosts[$fk->getLocalTable()->getName()])) {
+                    $cost *= $this->alteredTableCosts[$fk->getLocalTable()->getName()];
+                }
+
+                $edge->setWeight($cost);
                 $edge->getAttributeBag()->setAttribute('fk', $fk);
             }
         }
@@ -252,7 +277,11 @@ class SchemaAnalyzer
             }
 
             $edge = $graph->getVertex($tables[0])->createEdge($graph->getVertex($tables[1]));
-            $edge->setWeight(self::$WEIGHT_JOINTURE_TABLE);
+            $cost = self::$WEIGHT_JOINTURE_TABLE;
+            if (isset($this->alteredTableCosts[$junctionTable->getName()])) {
+                $cost *= $this->alteredTableCosts[$junctionTable->getName()];
+            }
+            $edge->setWeight($cost);
             $edge->getAttributeBag()->setAttribute('junction', $junctionTable);
         }
 
@@ -350,5 +379,46 @@ class SchemaAnalyzer
         }
 
         return $textPath;
+    }
+
+    /**
+     * Sets the cost of a foreign key.
+     *
+     * @param string $tableName
+     * @param string $columnName
+     * @param float $cost
+     * @return $this
+     */
+    public function setForeignKeyCost($tableName, $columnName, $cost) {
+        $this->alteredCosts[$tableName][$columnName] = $cost;
+    }
+
+    /**
+     * Sets the cost modifier of a table.
+     *
+     * @param string $tableName
+     * @param float $cost
+     * @return $this
+     */
+    public function setTableCostModifier($tableName, $cost) {
+        $this->alteredTableCosts[$tableName] = $cost;
+    }
+
+    /**
+     * Sets the cost modifier of all tables at once.
+     *
+     * @param array<string, float> $tableCosts The key is the table name, the value is the cost modifier.
+     */
+    public function setTableCostModifiers(array $tableCosts) {
+        $this->alteredTableCosts = $tableCosts;
+    }
+
+    /**
+     * Sets the cost of all foreign keys at once.
+     *
+     * @param array<string, array<string, float>> $fkCosts First key is the table name, second key is the column name, the value is the cost.
+     */
+    public function setForeignKeyCosts(array $fkCosts) {
+        $this->alteredCosts = $fkCosts;
     }
 }

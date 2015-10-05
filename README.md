@@ -88,3 +88,26 @@ $cache = new ApcCache();
 $schemaAnalyzer = new SchemaAnalyzer($conn->getSchemaManager(), $cache, "my_prefix");
 ```
 
+## Changing the cost of the foreign keys to alter the shortest path
+
+If you are facing an ambiguity exception or if the shortest path simply does not suit you, you can alter the 
+cost of the foreign keys.
+
+```php
+$schemaAnalyzer->setForeignKeyCost($tableName, $columnName, $cost);
+```
+
+The `$cost` can be any number. Remember that the default cost for a foreign key is **1**.
+
+SchemaAnalyzer comes with a set of default constants to help you work with costs:
+
+- `SchemaAnalyzer::WEIGHT_IMPORTANT` (0.75) for foreign keys that should be followed in priority 
+- `SchemaAnalyzer::WEIGHT_IRRELEVANT` (2) for foreign keys that should be generally avoided 
+- `SchemaAnalyzer::WEIGHT_IGNORE` (Infinity) for foreign keys that should never be used as part of the shortest path
+
+Another option is to add a cost modifier to a table. This will alter the cost of all foreign keys pointing to or
+originating from this table.
+
+```php
+$schemaAnalyzer->setTableCostModifier($tableName, $cost);
+```
