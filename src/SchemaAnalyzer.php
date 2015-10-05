@@ -10,11 +10,11 @@ use Doctrine\DBAL\Schema\Schema;
 use Doctrine\DBAL\Schema\Table;
 use Fhaculty\Graph\Edge\Base;
 use Fhaculty\Graph\Graph;
-use Graphp\Algorithms\ShortestPath\Dijkstra;
+use Fhaculty\Graph\Vertex;
 
 /**
  * This class can analyze a database model.
- * In this class you will find:
+ * In this class you will find.
  *
  * - Functions to automatically detect **junction tables**
  * - Functions to compute the shortest path between 2 tables based on the relationships stored in the schema.
@@ -23,6 +23,10 @@ class SchemaAnalyzer
 {
     private static $WEIGHT_FK = 1;
     private static $WEIGHT_JOINTURE_TABLE = 1.5;
+
+    const WEIGHT_IMPORTANT = 0.75;
+    const WEIGHT_IRRELEVANT = 2;
+    const WEIGHT_IGNORE = INF;
 
     /**
      * @var AbstractSchemaManager
@@ -45,9 +49,21 @@ class SchemaAnalyzer
     private $cachePrefix;
 
     /**
+     * Nested arrays containing table => column => cost
+     * @var float[][]
+     */
+    private $alteredCosts = [];
+
+    /**
+     * Array containing table cost
+     * @var float[]
+     */
+    private $alteredTableCosts = [];
+
+    /**
      * @param AbstractSchemaManager $schemaManager
-     * @param Cache|null $cache The Doctrine cache service to use to cache results (optional)
-     * @param string|null $schemaCacheKey The unique identifier for the schema manager. Compulsory if cache is set.
+     * @param Cache|null            $cache          The Doctrine cache service to use to cache results (optional)
+     * @param string|null           $schemaCacheKey The unique identifier for the schema manager. Compulsory if cache is set.
      */
     public function __construct(AbstractSchemaManager $schemaManager, Cache $cache = null, $schemaCacheKey = null)
     {
@@ -65,7 +81,8 @@ class SchemaAnalyzer
 
     /**
      * Detect all junctions tables in the schema.
-     * A table is a junction table if:
+     * A table is a junction table if:.
+     *
      * - it has exactly 2 foreign keys
      * - it has only 2 columns (or 3 columns if the third one is an autoincremented primary key).
      *
@@ -74,18 +91,20 @@ class SchemaAnalyzer
      */
     public function detectJunctionTables()
     {
-        $junctionTablesKey = $this->cachePrefix."_junctiontables";
+        $junctionTablesKey = $this->cachePrefix.'_junctiontables';
         $junctionTables = $this->cache->fetch($junctionTablesKey);
         if ($junctionTables === false) {
             $junctionTables = array_filter($this->getSchema()->getTables(), [$this, 'isJunctionTable']);
             $this->cache->save($junctionTablesKey, $junctionTables);
         }
+
         return $junctionTables;
     }
 
     /**
      * Returns true if $table is a junction table.
-     * I.e:
+     * I.e:.
+     *
      * - it must have exactly 2 foreign keys
      * - it must have only 2 columns (or 3 columns if the third one is an autoincremented primary key).
      *
@@ -144,17 +163,20 @@ class SchemaAnalyzer
      *
      * @param string $fromTable
      * @param string $toTable
+     *
      * @return \Doctrine\DBAL\Schema\ForeignKeyConstraint[]
+     *
      * @throws SchemaAnalyzerException
      */
     public function getShortestPath($fromTable, $toTable)
     {
-        $cacheKey = $this->cachePrefix."_shortest_".$fromTable."```".$toTable;
+        $cacheKey = $this->cachePrefix.'_shortest_'.$fromTable.'```'.$toTable;
         $path = $this->cache->fetch($cacheKey);
         if ($path === false) {
             $path = $this->getShortestPathWithoutCache($fromTable, $toTable);
             $this->cache->save($cacheKey, $path);
         }
+
         return $path;
     }
 
@@ -163,21 +185,30 @@ class SchemaAnalyzer
      *
      * @param string $fromTable
      * @param string $toTable
+     *
      * @return \Doctrine\DBAL\Schema\ForeignKeyConstraint[]
+     *
      * @throws SchemaAnalyzerException
      */
     private function getShortestPathWithoutCache($fromTable, $toTable)
     {
         $graph = $this->buildSchemaGraph();
 
-        $dijkstra = new Dijkstra($graph->getVertex($fromTable));
-        $walk = $dijkstra->getWalkTo($graph->getVertex($toTable));
+        try {
+            $predecessors = MultiDijkstra::findShortestPaths($graph->getVertex($fromTable), $graph->getVertex($toTable));
+            $edges = MultiDijkstra::getCheapestPathFromPredecesArray($graph->getVertex($fromTable), $graph->getVertex($toTable), $predecessors);
+        } catch (MultiDijkstraAmbiguityException $e) {
+            // If there is more than 1 short path, let's display this.
+            $paths = MultiDijkstra::getAllPossiblePathsFromPredecesArray($graph->getVertex($fromTable), $graph->getVertex($toTable), $predecessors);
+            $msg = $this->getAmbiguityExceptionMessage($paths, $graph->getVertex($fromTable), $graph->getVertex($toTable));
+            throw new ShortestPathAmbiguityException($msg);
+        }
 
         $foreignKeys = [];
 
         $currentTable = $fromTable;
 
-        foreach ($walk->getEdges() as $edge) {
+        foreach ($edges as $edge) {
             /* @var $edge Base */
 
             if ($fk = $edge->getAttribute('fk')) {
@@ -224,7 +255,16 @@ class SchemaAnalyzer
             foreach ($table->getForeignKeys() as $fk) {
                 // Create an undirected edge, with weight = 1
                 $edge = $graph->getVertex($table->getName())->createEdge($graph->getVertex($fk->getForeignTableName()));
-                $edge->setWeight(self::$WEIGHT_FK);
+                if (isset($this->alteredCosts[$fk->getLocalTable()->getName()][implode(',',$fk->getLocalColumns())])) {
+                    $cost = $this->alteredCosts[$fk->getLocalTable()->getName()][implode(',',$fk->getLocalColumns())];
+                } else {
+                    $cost = self::$WEIGHT_FK;
+                }
+                if (isset($this->alteredTableCosts[$fk->getLocalTable()->getName()])) {
+                    $cost *= $this->alteredTableCosts[$fk->getLocalTable()->getName()];
+                }
+
+                $edge->setWeight($cost);
                 $edge->getAttributeBag()->setAttribute('fk', $fk);
             }
         }
@@ -237,7 +277,11 @@ class SchemaAnalyzer
             }
 
             $edge = $graph->getVertex($tables[0])->createEdge($graph->getVertex($tables[1]));
-            $edge->setWeight(self::$WEIGHT_JOINTURE_TABLE);
+            $cost = self::$WEIGHT_JOINTURE_TABLE;
+            if (isset($this->alteredTableCosts[$junctionTable->getName()])) {
+                $cost *= $this->alteredTableCosts[$junctionTable->getName()];
+            }
+            $edge->setWeight($cost);
             $edge->getAttributeBag()->setAttribute('junction', $junctionTable);
         }
 
@@ -245,19 +289,136 @@ class SchemaAnalyzer
     }
 
     /**
-     * Returns the schema (from the schema manager or the cache if needed)
+     * Returns the schema (from the schema manager or the cache if needed).
+     *
      * @return Schema
      */
-    private function getSchema() {
+    private function getSchema()
+    {
         if ($this->schema === null) {
-            $schemaKey = $this->cachePrefix."_schema";
+            $schemaKey = $this->cachePrefix.'_schema';
             $this->schema = $this->cache->fetch($schemaKey);
             if (empty($this->schema)) {
                 $this->schema = $this->schemaManager->createSchema();
                 $this->cache->save($schemaKey, $this->schema);
             }
         }
+
         return $this->schema;
     }
 
+    /**
+     * Returns the full exception message when an ambiguity arises.
+     *
+     * @param Base[][] $paths
+     * @param Vertex   $startVertex
+     */
+    private function getAmbiguityExceptionMessage(array $paths, Vertex $startVertex, Vertex $endVertex)
+    {
+        $textPaths = [];
+        $i = 1;
+        foreach ($paths as $path) {
+            $textPaths[] = 'Path '.$i.': '.$this->getTextualPath($path, $startVertex);
+            ++$i;
+        }
+
+        $msg = sprintf("There are many possible shortest paths between table '%s' and table '%s'\n\n",
+            $startVertex->getId(), $endVertex->getId());
+
+        $msg .= implode("\n\n", $textPaths);
+
+        return $msg;
+    }
+
+    /**
+     * Returns the textual representation of the path.
+     *
+     * @param Base[] $path
+     * @param Vertex $startVertex
+     */
+    private function getTextualPath(array $path, Vertex $startVertex)
+    {
+        $currentVertex = $startVertex;
+        $currentTable = $currentVertex->getId();
+
+        $textPath = $currentTable;
+
+        foreach ($path as $edge) {
+            /* @var $fk ForeignKeyConstraint */
+            if ($fk = $edge->getAttribute('fk')) {
+                if ($fk->getForeignTableName() == $currentTable) {
+                    $currentTable = $fk->getLocalTable()->getName();
+                    $isForward = false;
+                } else {
+                    $currentTable = $fk->getForeignTableName();
+                    $isForward = true;
+                }
+
+                $columns = implode(',', $fk->getLocalColumns());
+
+                $textPath .= ' '.(!$isForward ? '<' : '');
+                $textPath .= '--('.$columns.')--';
+                $textPath .= ($isForward ? '>' : '').' ';
+                $textPath .= $currentTable;
+            } elseif ($junctionTable = $edge->getAttribute('junction')) {
+                /* @var $junctionTable Table */
+                $junctionFks = array_values($junctionTable->getForeignKeys());
+                // We need to order the 2 FKs. The first one is the one that has a common point with the current table.
+                $fk = $junctionFks[0];
+                if ($fk->getForeignTableName() == $currentTable) {
+                    $currentTable = $junctionFks[1]->getForeignTableName();
+                } else {
+                    $currentTable = $fk->getForeignTableName();
+                }
+                $textPath .= ' <=('.$junctionTable->getName().')=> '.$currentTable;
+            } else {
+                // @codeCoverageIgnoreStart
+                throw new SchemaAnalyzerException('Unexpected edge. We should have a fk or a junction attribute.');
+                // @codeCoverageIgnoreEnd
+            }
+        }
+
+        return $textPath;
+    }
+
+    /**
+     * Sets the cost of a foreign key.
+     *
+     * @param string $tableName
+     * @param string $columnName
+     * @param float $cost
+     * @return $this
+     */
+    public function setForeignKeyCost($tableName, $columnName, $cost) {
+        $this->alteredCosts[$tableName][$columnName] = $cost;
+    }
+
+    /**
+     * Sets the cost modifier of a table.
+     *
+     * @param string $tableName
+     * @param float $cost
+     * @return $this
+     */
+    public function setTableCostModifier($tableName, $cost) {
+        $this->alteredTableCosts[$tableName] = $cost;
+    }
+
+    /**
+     * Sets the cost modifier of all tables at once.
+     *
+     * @param array<string, float> $tableCosts The key is the table name, the value is the cost modifier.
+     */
+    public function setTableCostModifiers(array $tableCosts) {
+        $this->alteredTableCosts = $tableCosts;
+    }
+
+    /**
+     * Sets the cost of all foreign keys at once.
+     *
+     * @param array<string, array<string, float>> $fkCosts First key is the table name, second key is the column name, the value is the cost.
+     */
+    public function setForeignKeyCosts(array $fkCosts) {
+        $this->alteredCosts = $fkCosts;
+    }
 }

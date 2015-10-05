@@ -259,5 +259,157 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $r2 = $this->assertNotFalse($cache->fetch('mykey_shortest_role_right```role'));
         $this->assertTrue($r1 === $r2);
     }
+
+    public function testAmbiguityException() {
+        $schema = $this->getBaseSchema();
+
+        $role_right = $schema->createTable("role_right");
+        $role_right->addColumn("role_id", "integer", array("unsigned" => true));
+        $role_right->addColumn("right_id", "integer", array("unsigned" => true));
+        $role_right->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->setPrimaryKey(["role_id", "right_id"]);
+
+        $role_right2 = $schema->createTable("role_right2");
+        $role_right2->addColumn("role_id", "integer", array("unsigned" => true));
+        $role_right2->addColumn("right_id", "integer", array("unsigned" => true));
+        $role_right2->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right2->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right2->setPrimaryKey(["role_id", "right_id"]);
+
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
+
+        $exceptionTriggered = false;
+        try {
+            $schemaAnalyzer->getShortestPath("role", "right");
+        } catch (ShortestPathAmbiguityException $e) {
+            $this->assertContains("role <=(role_right)=> right", $e->getMessage());
+            $this->assertContains("role <=(role_right2)=> right", $e->getMessage());
+            $exceptionTriggered = true;
+        }
+        $this->assertTrue($exceptionTriggered);
+
+        $exceptionTriggered = false;
+        try {
+            $schemaAnalyzer->getShortestPath("right", "role");
+        } catch (ShortestPathAmbiguityException $e) {
+            $this->assertContains("right <=(role_right)=> role", $e->getMessage());
+            $this->assertContains("right <=(role_right2)=> role", $e->getMessage());
+            $exceptionTriggered = true;
+        }
+        $this->assertTrue($exceptionTriggered);
+
+    }
+
+    public function testAmbiguityExceptionWithNoJointure() {
+        $schema = $this->getBaseSchema();
+        $right = $schema->getTable("right");
+        $right->addColumn("role_id", "integer", array("unsigned" => true));
+        $right->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+
+        $right->addColumn("role_id2", "integer", array("unsigned" => true));
+        $right->addForeignKeyConstraint($schema->getTable('role'), array("role_id2"), array("id"), array("onUpdate" => "CASCADE"));
+
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
+
+        $exceptionTriggered = false;
+        try {
+            $schemaAnalyzer->getShortestPath("role", "right");
+        } catch (ShortestPathAmbiguityException $e) {
+            $this->assertContains("role <--(role_id)-- right", $e->getMessage());
+            $this->assertContains("role <--(role_id2)-- right", $e->getMessage());
+            $exceptionTriggered = true;
+        }
+        $this->assertTrue($exceptionTriggered);
+
+        $exceptionTriggered = false;
+        try {
+            $schemaAnalyzer->getShortestPath("right", "role");
+        } catch (ShortestPathAmbiguityException $e) {
+            $this->assertContains("right --(role_id)--> role", $e->getMessage());
+            $this->assertContains("right --(role_id2)--> role", $e->getMessage());
+            $exceptionTriggered = true;
+        }
+        $this->assertTrue($exceptionTriggered);
+    }
+
+    public function testAmbiguityExceptionWithNoJointureAndModifiedWeight() {
+        $schema = $this->getBaseSchema();
+        $right = $schema->getTable("right");
+        $right->addColumn("role_id", "integer", array("unsigned" => true));
+        $right->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+
+        $right->addColumn("role_id2", "integer", array("unsigned" => true));
+        $right->addForeignKeyConstraint($schema->getTable('role'), array("role_id2"), array("id"), array("onUpdate" => "CASCADE"));
+
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
+        $schemaAnalyzer->setForeignKeyCost('right', 'role_id', SchemaAnalyzer::WEIGHT_IMPORTANT);
+
+        $fks = $schemaAnalyzer->getShortestPath("role", "right");
+
+        $this->assertCount(1, $fks);
+        $this->assertEquals("right", $fks[0]->getLocalTable()->getName());
+        $this->assertEquals("role", $fks[0]->getForeignTableName());
+    }
+
+    public function testAmbiguityExceptionWithJointureAndModifiedWeight() {
+        $schema = $this->getBaseSchema();
+
+        $role_right = $schema->createTable("role_right");
+        $role_right->addColumn("role_id", "integer", array("unsigned" => true));
+        $role_right->addColumn("right_id", "integer", array("unsigned" => true));
+        $role_right->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->setPrimaryKey(["role_id", "right_id"]);
+
+        $role_right2 = $schema->createTable("role_right2");
+        $role_right2->addColumn("role_id", "integer", array("unsigned" => true));
+        $role_right2->addColumn("right_id", "integer", array("unsigned" => true));
+        $role_right2->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right2->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right2->setPrimaryKey(["role_id", "right_id"]);
+
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
+        $schemaAnalyzer->setTableCostModifier("role_right2", SchemaAnalyzer::WEIGHT_IRRELEVANT);
+
+        $fks = $schemaAnalyzer->getShortestPath("role", "right");
+
+        $this->assertCount(2, $fks);
+        $this->assertEquals("role_right", $fks[0]->getLocalTable()->getName());
+        $this->assertEquals("role", $fks[0]->getForeignTableName());
+        $this->assertEquals("role_right", $fks[1]->getLocalTable()->getName());
+        $this->assertEquals("right", $fks[1]->getForeignTableName());
+    }
+
+    public function testAmbiguityExceptionWithJointureAndModifiedWeight2() {
+        $schema = $this->getBaseSchema();
+
+        $role_right = $schema->createTable("role_right");
+        $role_right->addColumn("role_id", "integer", array("unsigned" => true));
+        $role_right->addColumn("right_id", "integer", array("unsigned" => true));
+        $role_right->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->setPrimaryKey(["role_id", "right_id"]);
+
+        $role_right2 = $schema->createTable("role_right2");
+        $role_right2->addColumn("role_id", "integer", array("unsigned" => true));
+        $role_right2->addColumn("right_id", "integer", array("unsigned" => true));
+        $role_right2->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right2->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right2->setPrimaryKey(["role_id", "right_id"]);
+
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
+        $schemaAnalyzer->setTableCostModifiers(["role_right2" => SchemaAnalyzer::WEIGHT_IRRELEVANT]);
+        $schemaAnalyzer->setForeignKeyCosts([]);
+
+        $fks = $schemaAnalyzer->getShortestPath("role", "right");
+
+        $this->assertCount(2, $fks);
+        $this->assertEquals("role_right", $fks[0]->getLocalTable()->getName());
+        $this->assertEquals("role", $fks[0]->getForeignTableName());
+        $this->assertEquals("role_right", $fks[1]->getLocalTable()->getName());
+        $this->assertEquals("right", $fks[1]->getForeignTableName());
+    }
+
 }
 
