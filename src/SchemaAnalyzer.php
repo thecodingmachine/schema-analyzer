@@ -11,7 +11,6 @@ use Doctrine\DBAL\Schema\Table;
 use Fhaculty\Graph\Edge\Base;
 use Fhaculty\Graph\Graph;
 use Fhaculty\Graph\Vertex;
-use Graphp\Algorithms\ShortestPath\Dijkstra;
 
 /**
  * This class can analyze a database model.
@@ -47,8 +46,8 @@ class SchemaAnalyzer
 
     /**
      * @param AbstractSchemaManager $schemaManager
-     * @param Cache|null $cache The Doctrine cache service to use to cache results (optional)
-     * @param string|null $schemaCacheKey The unique identifier for the schema manager. Compulsory if cache is set.
+     * @param Cache|null            $cache          The Doctrine cache service to use to cache results (optional)
+     * @param string|null           $schemaCacheKey The unique identifier for the schema manager. Compulsory if cache is set.
      */
     public function __construct(AbstractSchemaManager $schemaManager, Cache $cache = null, $schemaCacheKey = null)
     {
@@ -66,7 +65,7 @@ class SchemaAnalyzer
 
     /**
      * Detect all junctions tables in the schema.
-     * A table is a junction table if:
+     * A table is a junction table if:.
      *
      * - it has exactly 2 foreign keys
      * - it has only 2 columns (or 3 columns if the third one is an autoincremented primary key).
@@ -76,18 +75,19 @@ class SchemaAnalyzer
      */
     public function detectJunctionTables()
     {
-        $junctionTablesKey = $this->cachePrefix."_junctiontables";
+        $junctionTablesKey = $this->cachePrefix.'_junctiontables';
         $junctionTables = $this->cache->fetch($junctionTablesKey);
         if ($junctionTables === false) {
             $junctionTables = array_filter($this->getSchema()->getTables(), [$this, 'isJunctionTable']);
             $this->cache->save($junctionTablesKey, $junctionTables);
         }
+
         return $junctionTables;
     }
 
     /**
      * Returns true if $table is a junction table.
-     * I.e:
+     * I.e:.
      *
      * - it must have exactly 2 foreign keys
      * - it must have only 2 columns (or 3 columns if the third one is an autoincremented primary key).
@@ -147,17 +147,20 @@ class SchemaAnalyzer
      *
      * @param string $fromTable
      * @param string $toTable
+     *
      * @return \Doctrine\DBAL\Schema\ForeignKeyConstraint[]
+     *
      * @throws SchemaAnalyzerException
      */
     public function getShortestPath($fromTable, $toTable)
     {
-        $cacheKey = $this->cachePrefix."_shortest_".$fromTable."```".$toTable;
+        $cacheKey = $this->cachePrefix.'_shortest_'.$fromTable.'```'.$toTable;
         $path = $this->cache->fetch($cacheKey);
         if ($path === false) {
             $path = $this->getShortestPathWithoutCache($fromTable, $toTable);
             $this->cache->save($cacheKey, $path);
         }
+
         return $path;
     }
 
@@ -166,7 +169,9 @@ class SchemaAnalyzer
      *
      * @param string $fromTable
      * @param string $toTable
+     *
      * @return \Doctrine\DBAL\Schema\ForeignKeyConstraint[]
+     *
      * @throws SchemaAnalyzerException
      */
     private function getShortestPathWithoutCache($fromTable, $toTable)
@@ -255,18 +260,21 @@ class SchemaAnalyzer
     }
 
     /**
-     * Returns the schema (from the schema manager or the cache if needed)
+     * Returns the schema (from the schema manager or the cache if needed).
+     *
      * @return Schema
      */
-    private function getSchema() {
+    private function getSchema()
+    {
         if ($this->schema === null) {
-            $schemaKey = $this->cachePrefix."_schema";
+            $schemaKey = $this->cachePrefix.'_schema';
             $this->schema = $this->cache->fetch($schemaKey);
             if (empty($this->schema)) {
                 $this->schema = $this->schemaManager->createSchema();
                 $this->cache->save($schemaKey, $this->schema);
             }
         }
+
         return $this->schema;
     }
 
@@ -274,14 +282,15 @@ class SchemaAnalyzer
      * Returns the full exception message when an ambiguity arises.
      *
      * @param Base[][] $paths
-     * @param Vertex $startVertex
+     * @param Vertex   $startVertex
      */
-    private function getAmbiguityExceptionMessage(array $paths, Vertex $startVertex, Vertex $endVertex) {
+    private function getAmbiguityExceptionMessage(array $paths, Vertex $startVertex, Vertex $endVertex)
+    {
         $textPaths = [];
         $i = 1;
         foreach ($paths as $path) {
-            $textPaths[] = "Path ".$i.": ".$this->getTextualPath($path, $startVertex);
-            $i++;
+            $textPaths[] = 'Path '.$i.': '.$this->getTextualPath($path, $startVertex);
+            ++$i;
         }
 
         $msg = sprintf("There are many possible shortest paths between table '%s' and table '%s'\n\n",
@@ -298,7 +307,8 @@ class SchemaAnalyzer
      * @param Base[] $path
      * @param Vertex $startVertex
      */
-    private function getTextualPath(array $path, Vertex $startVertex) {
+    private function getTextualPath(array $path, Vertex $startVertex)
+    {
         $currentVertex = $startVertex;
         $currentTable = $currentVertex->getId();
 
@@ -317,9 +327,9 @@ class SchemaAnalyzer
 
                 $columns = implode(',', $fk->getLocalColumns());
 
-                $textPath .= " ".(!$isForward?"<":"");
-                $textPath .= "--(".$columns.")--";
-                $textPath .= ($isForward?">":"")." ";
+                $textPath .= ' '.(!$isForward ? '<' : '');
+                $textPath .= '--('.$columns.')--';
+                $textPath .= ($isForward ? '>' : '').' ';
                 $textPath .= $currentTable;
             } elseif ($junctionTable = $edge->getAttribute('junction')) {
                 /* @var $junctionTable Table */
@@ -331,7 +341,7 @@ class SchemaAnalyzer
                 } else {
                     $currentTable = $fk->getForeignTableName();
                 }
-                $textPath .= " <=(".$junctionTable->getName().")=> ".$currentTable;
+                $textPath .= ' <=('.$junctionTable->getName().')=> '.$currentTable;
             } else {
                 // @codeCoverageIgnoreStart
                 throw new SchemaAnalyzerException('Unexpected edge. We should have a fk or a junction attribute.');

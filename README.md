@@ -55,7 +55,7 @@ It will return the list of foreign keys it used to link the 2 tables.
 Internals:
 
 - Each foreign key has a *cost* of 1
-- Junction tables have a cost of 1.5, instead of 2 (one for each foreign key)
+- Junction tables have a *cost* of 1.5, instead of 2 (one for each foreign key)
 
 ```php
 // $conn is the DBAL connection.
@@ -66,4 +66,25 @@ $fks = $schemaAnalyzer->getShortestPath("users", "rights");
 // This will return an array of Doctrine\DBAL\Schema\ForeignKeyConstraint objects
 ```
 
-// TODO: Ambiguity exception!
+<div class="alert alert-info"><strong>Heads up!</strong> The shortest path is based on the <em>cost</em> of the 
+foreign keys. It is perfectly possible to have several shortest paths (if several paths have the same total cost). 
+If there are several shortest paths, rather than choosing one path amongst the others, SchemaAnalyzer will throw
+a <code>ShortestPathAmbiguityException</code>. The exception message details all the possible shortest
+paths.</div>
+
+## Caching results
+
+Analyzing the full data model and looking for shortest paths can take a long time. For anything that should run 
+in a production environment, it is recommended to cache the result. `SchemaAnalyzer` can be passed a Doctrine cache,
+along a cache prefix. The cache prefix is a string that will be used to prefix all cache keys. It is useful to 
+avoid cache collisions between several databases.
+
+Usage:
+
+```php
+// $conn is the DBAL connection.
+// Let's use the ApcCache (or any other Doctrine cache...)
+$cache = new ApcCache();
+$schemaAnalyzer = new SchemaAnalyzer($conn->getSchemaManager(), $cache, "my_prefix");
+```
+

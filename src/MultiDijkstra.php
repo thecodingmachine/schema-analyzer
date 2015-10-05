@@ -5,7 +5,7 @@ namespace Mouf\Database\SchemaAnalyzer;
 use Fhaculty\Graph\Edge;
 use Fhaculty\Graph\Exception\UnexpectedValueException;
 use Fhaculty\Graph\Vertex;
-use \SplPriorityQueue;
+use SplPriorityQueue;
 
 /**
  * Dijkstra's shortest path algorithm modified to measure all possible shortest paths.
@@ -13,15 +13,16 @@ use \SplPriorityQueue;
 class MultiDijkstra
 {
     /**
-     * Get all edges on shortest path for this vertex
+     * Get all edges on shortest path for this vertex.
      *
-     * @throws UnexpectedValueException when encountering an Edge with negative weight
+     * @throws UnexpectedValueException     when encountering an Edge with negative weight
      * @throws MultiDijkstraNoPathException
+     *
      * @return array<string, Vertex[]> where key is the destination vertex name and value is an array of possible origin vertex
      */
     public static function findShortestPaths(Vertex $startVertex, Vertex $endVertex)
     {
-        $totalCostOfCheapestPathTo  = [];
+        $totalCostOfCheapestPathTo = [];
         // start node distance
         $totalCostOfCheapestPathTo[$startVertex->getId()] = 0;
 
@@ -33,18 +34,18 @@ class MultiDijkstra
         $cheapestVertex->insert($startVertex, 0);
 
         // predecessors
-        $predecesEdgeOfCheapestPathTo  = [];
+        $predecesEdgeOfCheapestPathTo = [];
 
         // mark vertices when their cheapest path has been found
-        $usedVertices = [ $startVertex->getId() => true ];
+        $usedVertices = [$startVertex->getId() => true];
 
         $isFirst = true;
 
         // Repeat until all vertices have been marked
         $totalCountOfVertices = count($startVertex->getGraph()->getVertices());
         for ($i = 0; $i < $totalCountOfVertices; ++$i) {
-            $currentVertex = NULL;
-            $currentVertexId = NULL;
+            $currentVertex = null;
+            $currentVertexId = null;
             $isEmpty = false;
             if ($isFirst) {
                 $currentVertex = $startVertex;
@@ -87,7 +88,6 @@ class MultiDijkstra
                 break;
             }
 
-
             // check for all edges of current vertex if there is a cheaper path (or IN OTHER WORDS: Add reachable nodes from currently added node and refresh the current possible distances)
             foreach ($currentVertex->getEdgesOut() as $edge) {
                 $weight = $edge->getWeight();
@@ -105,23 +105,22 @@ class MultiDijkstra
 
                     if ((!isset($predecesEdgeOfCheapestPathTo[$targetVertexId]))
                            // is the new path cheaper?
-                           || $totalCostOfCheapestPathTo[$targetVertexId] > $newCostsToTargetVertex){
+                           || $totalCostOfCheapestPathTo[$targetVertexId] > $newCostsToTargetVertex) {
 
                         // Not an update, just a new insert with lower cost
-                        $cheapestVertex->insert($targetVertex, - $newCostsToTargetVertex);
+                        $cheapestVertex->insert($targetVertex, -$newCostsToTargetVertex);
                         // so the lowest cost will be extracted first
                         // and higher cost will be skipped during extraction
 
                         // update/set costs found with the new connection
                         $totalCostOfCheapestPathTo[$targetVertexId] = $newCostsToTargetVertex;
                         // update/set predecessor vertex from the new connection
-                        $predecesEdgeOfCheapestPathTo[$targetVertexId] = [ $edge ];
+                        $predecesEdgeOfCheapestPathTo[$targetVertexId] = [$edge];
                     } elseif ($totalCostOfCheapestPathTo[$targetVertexId] == $newCostsToTargetVertex) {
                         // Same length paths. We need to add the predecessor to the list of possible predecessors.
                         $predecesEdgeOfCheapestPathTo[$targetVertexId][] = $edge;
                     }
                 }
-
             }
         }
 
@@ -134,10 +133,12 @@ class MultiDijkstra
     }
 
     /**
-     * @param array<string, Vertex[]> $predecesEdgesArray  key is the destination vertex name and value is an array of possible origin vertex
+     * @param array<string, Vertex[]> $predecesEdgesArray key is the destination vertex name and value is an array of possible origin vertex
+     *
      * @return Edge\Base[]
      */
-    public static function getCheapestPathFromPredecesArray(Vertex $startVertex, Vertex $endVertex, array $predecesEdgesArray) {
+    public static function getCheapestPathFromPredecesArray(Vertex $startVertex, Vertex $endVertex, array $predecesEdgesArray)
+    {
         $edges = [];
         $currentVertex = $endVertex;
         while ($currentVertex !== $startVertex) {
@@ -161,10 +162,12 @@ class MultiDijkstra
     /**
      * @param Vertex $startVertex
      * @param Vertex $endVertex
-     * @param array $predecesEdgesArray
+     * @param array  $predecesEdgesArray
+     *
      * @return Edge\Base[][]
      */
-    public static function getAllPossiblePathsFromPredecesArray(Vertex $startVertex, Vertex $endVertex, array $predecesEdgesArray) {
+    public static function getAllPossiblePathsFromPredecesArray(Vertex $startVertex, Vertex $endVertex, array $predecesEdgesArray)
+    {
         $edgesPaths = [];
 
         if ($startVertex === $endVertex) {
@@ -186,9 +189,8 @@ class MultiDijkstra
                     $edges2[] = $edge;
                 }
             } else {
-                $edgesPaths2 = [ [ $edge ] ];
+                $edgesPaths2 = [[$edge]];
             }
-
 
             $edgesPaths = array_merge($edgesPaths, $edgesPaths2);
         }
