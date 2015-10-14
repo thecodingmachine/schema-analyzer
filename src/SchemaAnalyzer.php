@@ -22,6 +22,7 @@ use Fhaculty\Graph\Vertex;
 class SchemaAnalyzer
 {
     private static $WEIGHT_FK = 1;
+    private static $WEIGHT_INHERITANCE_FK = 0.1;
     private static $WEIGHT_JOINTURE_TABLE = 1.5;
 
     const WEIGHT_IMPORTANT = 0.75;
@@ -49,13 +50,15 @@ class SchemaAnalyzer
     private $cachePrefix;
 
     /**
-     * Nested arrays containing table => column => cost
+     * Nested arrays containing table => column => cost.
+     *
      * @var float[][]
      */
     private $alteredCosts = [];
 
     /**
-     * Array containing table cost
+     * Array containing table cost.
+     *
      * @var float[]
      */
     private $alteredTableCosts = [];
@@ -124,7 +127,11 @@ class SchemaAnalyzer
             return false;
         }
 
-        $pkColumns = $table->getPrimaryKeyColumns();
+        if ($table->hasPrimaryKey()) {
+            $pkColumns = $table->getPrimaryKeyColumns();
+        } else {
+            $pkColumns = [];
+        }
 
         if (count($pkColumns) == 1 && count($columns) == 2) {
             return false;
@@ -170,14 +177,9 @@ class SchemaAnalyzer
      */
     public function getShortestPath($fromTable, $toTable)
     {
-        $cacheKey = $this->cachePrefix.'_shortest_'.$fromTable.'```'.$toTable;
-        $path = $this->cache->fetch($cacheKey);
-        if ($path === false) {
-            $path = $this->getShortestPathWithoutCache($fromTable, $toTable);
-            $this->cache->save($cacheKey, $path);
-        }
-
-        return $path;
+        return $this->fromCache($this->cachePrefix.'_shortest_'.$fromTable.'```'.$toTable, function () use ($fromTable, $toTable) {
+            return $this->getShortestPathWithoutCache($fromTable, $toTable);
+        });
     }
 
     /**
@@ -255,8 +257,10 @@ class SchemaAnalyzer
             foreach ($table->getForeignKeys() as $fk) {
                 // Create an undirected edge, with weight = 1
                 $edge = $graph->getVertex($table->getName())->createEdge($graph->getVertex($fk->getForeignTableName()));
-                if (isset($this->alteredCosts[$fk->getLocalTable()->getName()][implode(',',$fk->getLocalColumns())])) {
-                    $cost = $this->alteredCosts[$fk->getLocalTable()->getName()][implode(',',$fk->getLocalColumns())];
+                if (isset($this->alteredCosts[$fk->getLocalTable()->getName()][implode(',', $fk->getLocalColumns())])) {
+                    $cost = $this->alteredCosts[$fk->getLocalTable()->getName()][implode(',', $fk->getLocalColumns())];
+                } elseif ($this->isInheritanceRelationship($fk)) {
+                    $cost = self::$WEIGHT_INHERITANCE_FK;
                 } else {
                     $cost = self::$WEIGHT_FK;
                 }
@@ -386,10 +390,12 @@ class SchemaAnalyzer
      *
      * @param string $tableName
      * @param string $columnName
-     * @param float $cost
+     * @param float  $cost
+     *
      * @return $this
      */
-    public function setForeignKeyCost($tableName, $columnName, $cost) {
+    public function setForeignKeyCost($tableName, $columnName, $cost)
+    {
         $this->alteredCosts[$tableName][$columnName] = $cost;
     }
 
@@ -397,10 +403,12 @@ class SchemaAnalyzer
      * Sets the cost modifier of a table.
      *
      * @param string $tableName
-     * @param float $cost
+     * @param float  $cost
+     *
      * @return $this
      */
-    public function setTableCostModifier($tableName, $cost) {
+    public function setTableCostModifier($tableName, $cost)
+    {
         $this->alteredTableCosts[$tableName] = $cost;
     }
 
@@ -409,7 +417,8 @@ class SchemaAnalyzer
      *
      * @param array<string, float> $tableCosts The key is the table name, the value is the cost modifier.
      */
-    public function setTableCostModifiers(array $tableCosts) {
+    public function setTableCostModifiers(array $tableCosts)
+    {
         $this->alteredTableCosts = $tableCosts;
     }
 
@@ -418,7 +427,129 @@ class SchemaAnalyzer
      *
      * @param array<string, array<string, float>> $fkCosts First key is the table name, second key is the column name, the value is the cost.
      */
-    public function setForeignKeyCosts(array $fkCosts) {
+    public function setForeignKeyCosts(array $fkCosts)
+    {
         $this->alteredCosts = $fkCosts;
+    }
+
+    /**
+     * Returns true if this foreign key represents an inheritance relationship,
+     * i.e. if this foreign key is based on a primary key.
+     *
+     * @param ForeignKeyConstraint $fk
+     *
+     * @return true
+     */
+    private function isInheritanceRelationship(ForeignKeyConstraint $fk)
+    {
+        if (!$fk->getLocalTable()->hasPrimaryKey()) {
+            return false;
+        }
+        $fkColumnNames = $fk->getLocalColumns();
+        $pkColumnNames = $fk->getLocalTable()->getPrimaryKeyColumns();
+
+        sort($fkColumnNames);
+        sort($pkColumnNames);
+
+        return $fkColumnNames == $pkColumnNames;
+    }
+
+    /**
+     * If this table is pointing to a parent table (if its primary key is a foreign key pointing on another table),
+     * this function will return the pointed table.
+     * This function will return null if there is no parent table.
+     *
+     * @param string $tableName
+     *
+     * @return string|null
+     */
+    public function getParentTable($tableName)
+    {
+        return $this->fromCache($this->cachePrefix.'_parent_'.$tableName, function () use ($tableName) {
+            return $this->getParentTableWithoutCache($tableName);
+        });
+    }
+
+    /**
+     * If this table is pointing to a parent table (if its primary key is a foreign key pointing on another table),
+     * this function will return the pointed table.
+     * This function will return null if there is no parent table.
+     *
+     * @param string $tableName
+     *
+     * @return string|null
+     */
+    private function getParentTableWithoutCache($tableName)
+    {
+        $table = $this->getSchema()->getTable($tableName);
+        foreach ($table->getForeignKeys() as $fk) {
+            if ($this->isInheritanceRelationship($fk)) {
+                return $fk->getForeignTableName();
+            }
+        }
+
+        return;
+    }
+
+    /**
+     * If this table is pointed by children tables (if other child tables have a primary key that is also a
+     * foreign key to this table), this function will return the list of child tables.
+     * This function will return an empty array if there are no children tables.
+     *
+     * @param string $tableName
+     *
+     * @return string[]
+     */
+    public function getChildrenTables($tableName)
+    {
+        return $this->fromCache($this->cachePrefix.'_children_'.$tableName, function () use ($tableName) {
+            return $this->getChildrenTablesWithoutCache($tableName);
+        });
+    }
+
+    /**
+     * If this table is pointed by children tables (if other child tables have a primary key that is also a
+     * foreign key to this table), this function will return the list of child tables.
+     * This function will return an empty array if there are no children tables.
+     *
+     * @param string $tableName
+     *
+     * @return string[]
+     */
+    private function getChildrenTablesWithoutCache($tableName)
+    {
+        $schema = $this->getSchema();
+        $children = [];
+        foreach ($schema->getTables() as $table) {
+            if ($table->getName() === $tableName) {
+                continue;
+            }
+            foreach ($table->getForeignKeys() as $fk) {
+                if ($fk->getForeignTableName() === $tableName && $this->isInheritanceRelationship($fk)) {
+                    $children[] = $fk->getLocalTableName();
+                }
+            }
+        }
+
+        return $children;
+    }
+
+    /**
+     * Returns an item from cache or computes it using $closure and puts it in cache.
+     *
+     * @param string   $key
+     * @param callable $closure
+     *
+     * @return mixed
+     */
+    private function fromCache($key, callable $closure)
+    {
+        $item = $this->cache->fetch($key);
+        if ($item === false) {
+            $item = $closure();
+            $this->cache->save($key, $item);
+        }
+
+        return $item;
     }
 }

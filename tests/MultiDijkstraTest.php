@@ -1,27 +1,27 @@
 <?php
+
 namespace Mouf\Database\SchemaAnalyzer;
 
-use Doctrine\Common\Cache\ArrayCache;
-use Doctrine\DBAL\Schema\Schema;
 use Fhaculty\Graph\Graph;
 use Fhaculty\Graph\Vertex;
 use Fhaculty\Graph\Edge;
 
 class MultiDijkstraTest extends \PHPUnit_Framework_TestCase
 {
-    public function testDijkstra() {
+    public function testDijkstra()
+    {
         $graph = new Graph();
 
-        $a = $graph->createVertex("a");
-        $b = $graph->createVertex("b");
-        $c = $graph->createVertex("c");
-        $d = $graph->createVertex("d");
-        $e = $graph->createVertex("e");
-        $f = $graph->createVertex("f");
-        $g = $graph->createVertex("g");
-        $h = $graph->createVertex("h");
-        $i = $graph->createVertex("i");
-        $j = $graph->createVertex("j");
+        $a = $graph->createVertex('a');
+        $b = $graph->createVertex('b');
+        $c = $graph->createVertex('c');
+        $d = $graph->createVertex('d');
+        $e = $graph->createVertex('e');
+        $f = $graph->createVertex('f');
+        $g = $graph->createVertex('g');
+        $h = $graph->createVertex('h');
+        $i = $graph->createVertex('i');
+        $j = $graph->createVertex('j');
 
         $a->createEdge($b)->setWeight(85);
         $a->createEdge($c)->setWeight(217);
@@ -50,13 +50,14 @@ class MultiDijkstraTest extends \PHPUnit_Framework_TestCase
     /**
      * @expectedException \Mouf\Database\SchemaAnalyzer\MultiDijkstraAmbiguityException
      */
-    public function testDijkstraAmbiguity() {
+    public function testDijkstraAmbiguity()
+    {
         $graph = new Graph();
 
-        $a = $graph->createVertex("a");
-        $b = $graph->createVertex("b");
-        $c = $graph->createVertex("c");
-        $d = $graph->createVertex("d");
+        $a = $graph->createVertex('a');
+        $b = $graph->createVertex('b');
+        $c = $graph->createVertex('c');
+        $d = $graph->createVertex('d');
 
         $a->createEdge($b)->setWeight(12);
         $a->createEdge($c)->setWeight(42);
@@ -71,13 +72,14 @@ class MultiDijkstraTest extends \PHPUnit_Framework_TestCase
     /**
      * @expectedException \Mouf\Database\SchemaAnalyzer\MultiDijkstraNoPathException
      */
-    public function testDijkstraNoPath() {
+    public function testDijkstraNoPath()
+    {
         $graph = new Graph();
 
-        $a = $graph->createVertex("a");
-        $b = $graph->createVertex("b");
-        $c = $graph->createVertex("c");
-        $d = $graph->createVertex("d");
+        $a = $graph->createVertex('a');
+        $b = $graph->createVertex('b');
+        $c = $graph->createVertex('c');
+        $d = $graph->createVertex('d');
 
         $a->createEdge($b)->setWeight(12);
         $a->createEdge($c)->setWeight(42);
@@ -88,30 +90,32 @@ class MultiDijkstraTest extends \PHPUnit_Framework_TestCase
     /**
      * @expectedException \Fhaculty\Graph\Exception\UnexpectedValueException
      */
-    public function testDijkstraNegativeWeight() {
+    public function testDijkstraNegativeWeight()
+    {
         $graph = new Graph();
 
-        $a = $graph->createVertex("a");
-        $b = $graph->createVertex("b");
+        $a = $graph->createVertex('a');
+        $b = $graph->createVertex('b');
 
         $a->createEdge($b)->setWeight(-12);
 
         MultiDijkstra::findShortestPaths($a, $b);
     }
 
-    public function testOptimizedExit() {
+    public function testOptimizedExit()
+    {
         $graph = new Graph();
 
-        $a = $graph->createVertex("a");
-        $b = $graph->createVertex("b");
-        $c = $graph->createVertex("c");
-        $d = $graph->createVertex("d");
-        $e = $graph->createVertex("e");
-        $f = $graph->createVertex("f");
-        $g = $graph->createVertex("g");
-        $h = $graph->createVertex("h");
-        $i = $graph->createVertex("i");
-        $j = $graph->createVertex("j");
+        $a = $graph->createVertex('a');
+        $b = $graph->createVertex('b');
+        $c = $graph->createVertex('c');
+        $d = $graph->createVertex('d');
+        $e = $graph->createVertex('e');
+        $f = $graph->createVertex('f');
+        $g = $graph->createVertex('g');
+        $h = $graph->createVertex('h');
+        $i = $graph->createVertex('i');
+        $j = $graph->createVertex('j');
 
         $a->createEdge($b)->setWeight(1);
         $a->createEdge($c)->setWeight(217);
@@ -134,17 +138,19 @@ class MultiDijkstraTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue($this->hasVertex($edges[0], $b));
     }
 
-    private function hasVertex(Edge\Base $edge, Vertex $vertex) {
+    private function hasVertex(Edge\Base $edge, Vertex $vertex)
+    {
         return $edge->getVerticesStart()->getVertexFirst() === $vertex || $edge->getVerticesTarget()->getVertexFirst() === $vertex;
     }
 
-    public function testDijkstraAmbiguity2() {
+    public function testDijkstraAmbiguity2()
+    {
         $graph = new Graph();
 
-        $a = $graph->createVertex("a");
-        $b = $graph->createVertex("b");
-        $c = $graph->createVertex("c");
-        $d = $graph->createVertex("d");
+        $a = $graph->createVertex('a');
+        $b = $graph->createVertex('b');
+        $c = $graph->createVertex('c');
+        $d = $graph->createVertex('d');
 
         $a->createEdge($b)->setWeight(12);
         $a->createEdge($c)->setWeight(42);
@@ -170,14 +176,15 @@ class MultiDijkstraTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue($this->hasVertex($paths[1][1], $d));
     }
 
-    public function testDijkstraAmbiguity3() {
+    public function testDijkstraAmbiguity3()
+    {
         $graph = new Graph();
 
-        $a = $graph->createVertex("a");
-        $b = $graph->createVertex("b");
-        $c = $graph->createVertex("c");
-        $d = $graph->createVertex("d");
-        $e = $graph->createVertex("e");
+        $a = $graph->createVertex('a');
+        $b = $graph->createVertex('b');
+        $c = $graph->createVertex('c');
+        $d = $graph->createVertex('d');
+        $e = $graph->createVertex('e');
 
         $a->createEdge($b)->setWeight(12);
         $a->createEdge($c)->setWeight(42);
@@ -192,5 +199,4 @@ class MultiDijkstraTest extends \PHPUnit_Framework_TestCase
 
         $this->assertCount(4, $paths);
     }
-
 }
