@@ -161,6 +161,24 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $this->assertCount(0, $junctionTables);
     }
 
+    public function testJointureTableDetectionWith2ColumnsAndNoPrimaryKey() {
+        $schema = $this->getBaseSchema();
+        $schema->getTable('role')->addColumn('right_id', 'integer');
+
+        $role_right = $schema->createTable("role_right");
+        $role_right->addColumn("role_id", "integer", array("unsigned" => true));
+        $role_right->addColumn("right_id", "integer", array("unsigned" => true));
+
+        $role_right->addForeignKeyConstraint($schema->getTable('role'), array("role_id"), array("id"), array("onUpdate" => "CASCADE"));
+        $role_right->addForeignKeyConstraint($schema->getTable('right'), array("right_id"), array("id"), array("onUpdate" => "CASCADE"));
+
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
+        $junctionTables = $schemaAnalyzer->detectJunctionTables();
+
+        $this->assertCount(1, $junctionTables);
+    }
+
+
     public function testJointureTableDetectionWith3ColumnsWithPkIsFk() {
         $schema = $this->getBaseSchema();
 
@@ -411,5 +429,35 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals("right", $fks[1]->getForeignTableName());
     }
 
+    public function testInheritanceRelationship() {
+        $schema = new Schema();
+        $contact = $schema->createTable("contact");
+        $contact->addColumn("id", "integer", array("unsigned" => true));
+        $contact->addColumn("name", "string", array("length" => 32));
+        $contact->setPrimaryKey(["id"]);
+
+        $user = $schema->createTable("user");
+        $user->addColumn("id", "integer", array("unsigned" => true));
+        $user->addColumn("contact_id", "integer", array("unsigned" => true));
+        $user->addColumn("login", "string", array("length" => 32));
+        $user->setPrimaryKey(["id"]);
+
+        $user->addForeignKeyConstraint($contact, array("id"), array("id"), array("onUpdate" => "CASCADE"));
+        $user->addForeignKeyConstraint($contact, array("contact_id"), array("id"), array("onUpdate" => "CASCADE"));
+
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
+
+        // No ambiguity exception should be thrown because we go through inheritance relationship first.
+        $fks = $schemaAnalyzer->getShortestPath("user", "contact");
+
+        $this->assertCount(1, $fks);
+        $this->assertEquals("id", $fks[0]->getLocalColumns()[0]);
+
+        $this->assertEquals('contact', $schemaAnalyzer->getParentTable('user'));
+        $this->assertNull($schemaAnalyzer->getParentTable('contact'));
+
+        $this->assertEquals(['user'], $schemaAnalyzer->getChildrenTables('contact'));
+        $this->assertEquals([], $schemaAnalyzer->getChildrenTables('user'));
+    }
 }
 

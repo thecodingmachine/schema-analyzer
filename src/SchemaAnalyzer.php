@@ -22,6 +22,7 @@ use Fhaculty\Graph\Vertex;
 class SchemaAnalyzer
 {
     private static $WEIGHT_FK = 1;
+    private static $WEIGHT_INHERITANCE_FK = 0.1;
     private static $WEIGHT_JOINTURE_TABLE = 1.5;
 
     const WEIGHT_IMPORTANT = 0.75;
@@ -124,7 +125,11 @@ class SchemaAnalyzer
             return false;
         }
 
-        $pkColumns = $table->getPrimaryKeyColumns();
+        if ($table->hasPrimaryKey()) {
+            $pkColumns = $table->getPrimaryKeyColumns();
+        } else {
+            $pkColumns = [];
+        }
 
         if (count($pkColumns) == 1 && count($columns) == 2) {
             return false;
@@ -257,6 +262,8 @@ class SchemaAnalyzer
                 $edge = $graph->getVertex($table->getName())->createEdge($graph->getVertex($fk->getForeignTableName()));
                 if (isset($this->alteredCosts[$fk->getLocalTable()->getName()][implode(',',$fk->getLocalColumns())])) {
                     $cost = $this->alteredCosts[$fk->getLocalTable()->getName()][implode(',',$fk->getLocalColumns())];
+                } elseif ($this->isInheritanceRelationship($fk)) {
+                    $cost = self::$WEIGHT_INHERITANCE_FK;
                 } else {
                     $cost = self::$WEIGHT_FK;
                 }
@@ -420,5 +427,104 @@ class SchemaAnalyzer
      */
     public function setForeignKeyCosts(array $fkCosts) {
         $this->alteredCosts = $fkCosts;
+    }
+
+    /**
+     * Returns true if this foreign key represents an inheritance relationship,
+     * i.e. if this foreign key is based on a primary key.
+     * @param ForeignKeyConstraint $fk
+     * @return true
+     */
+    private function isInheritanceRelationship(ForeignKeyConstraint $fk) {
+        if (!$fk->getLocalTable()->hasPrimaryKey()) {
+            return false;
+        }
+        $fkColumnNames = $fk->getLocalColumns();
+        $pkColumnNames = $fk->getLocalTable()->getPrimaryKeyColumns();
+
+        sort($fkColumnNames);
+        sort($pkColumnNames);
+
+        return $fkColumnNames == $pkColumnNames;
+    }
+
+    /**
+     * If this table is pointing to a parent table (if its primary key is a foreign key pointing on another table),
+     * this function will return the pointed table.
+     * This function will return null if there is no parent table.
+     *
+     * @param string $tableName
+     * @return string|null
+     */
+    public function getParentTable($tableName) {
+        $cacheKey = $this->cachePrefix.'_parent_'.$tableName;
+        $parent = $this->cache->fetch($cacheKey);
+        if ($parent === false) {
+            $parent = $this->getParentTableWithoutCache($tableName);
+            $this->cache->save($cacheKey, $parent);
+        }
+
+        return $parent;
+    }
+
+    /**
+     * If this table is pointing to a parent table (if its primary key is a foreign key pointing on another table),
+     * this function will return the pointed table.
+     * This function will return null if there is no parent table.
+     *
+     * @param string $tableName
+     * @return string|null
+     */
+    private function getParentTableWithoutCache($tableName) {
+        $table = $this->getSchema()->getTable($tableName);
+        foreach ($table->getForeignKeys() as $fk) {
+            if ($this->isInheritanceRelationship($fk)) {
+                return $fk->getForeignTableName();
+            }
+        }
+        return null;
+    }
+
+    /**
+     * If this table is pointed by children tables (if other child tables have a primary key that is also a
+     * foreign key to this table), this function will return the list of child tables.
+     * This function will return an empty array if there are no children tables.
+     *
+     * @param string $tableName
+     * @return string[]
+     */
+    public function getChildrenTables($tableName) {
+        $cacheKey = $this->cachePrefix.'_children_'.$tableName;
+        $parent = $this->cache->fetch($cacheKey);
+        if ($parent === false) {
+            $parent = $this->getChildrenTablesWithoutCache($tableName);
+            $this->cache->save($cacheKey, $parent);
+        }
+
+        return $parent;
+    }
+
+    /**
+     * If this table is pointed by children tables (if other child tables have a primary key that is also a
+     * foreign key to this table), this function will return the list of child tables.
+     * This function will return an empty array if there are no children tables.
+     *
+     * @param string $tableName
+     * @return string[]
+     */
+    private function getChildrenTablesWithoutCache($tableName) {
+        $schema = $this->getSchema();
+        $children = [];
+        foreach ($schema->getTables() as $table) {
+            if ($table->getName() === $tableName) {
+                continue;
+            }
+            foreach ($table->getForeignKeys() as $fk) {
+                if ($fk->getForeignTableName() === $tableName && $this->isInheritanceRelationship($fk)) {
+                    $children[] = $fk->getLocalTableName();
+                }
+            }
+        }
+        return $children;
     }
 }

@@ -47,6 +47,28 @@ A **junction table** is a table:
 - that has **exactly 2 foreign keys**
 - that has **only 2 columns** (or **3 columns** if the one of those is an *autoincremented primary key*).
 
+## Detecting inheritance relationship between tables
+
+### About inheritance relationships
+
+If a table "user" has a primary key that is also a foreign key pointing on table "contact", then table "user" is 
+considered to be a child of table "contact". This is because you cannot create a row in "user" without having a row 
+with the same ID in "contact".
+
+Therefore, a "user" ID has to match a "contact", but a "contact" has not necessarily a "user" associated. 
+
+### Detecting inheritance relationships
+
+You can use `SchemaAnalyzer` to detect parent / child relationships.
+
+```php
+$parent = $schemaAnalyzer->getParentTable("user");
+// This will return the "contact" table (as a string)
+
+$children = $schemaAnalyzer->getChildrenTables("contact");
+// This will return an array of tables whose parent is contact: ["user"]
+```
+
 ## Computing the shortest path between 2 tables
 
 Following foreign keys, the `getShortestPath` function will try to find the shortest path between 2 tables.
@@ -56,6 +78,8 @@ Internals:
 
 - Each foreign key has a *cost* of 1
 - Junction tables have a *cost* of 1.5, instead of 2 (one for each foreign key)
+- Foreign keys representing an inheritance relationship (i.e. foreign keys binding the primary keys of 2 tables)
+  have a *cost* of 0.1
 
 ```php
 // $conn is the DBAL connection.
