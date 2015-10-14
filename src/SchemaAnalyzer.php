@@ -175,14 +175,9 @@ class SchemaAnalyzer
      */
     public function getShortestPath($fromTable, $toTable)
     {
-        $cacheKey = $this->cachePrefix.'_shortest_'.$fromTable.'```'.$toTable;
-        $path = $this->cache->fetch($cacheKey);
-        if ($path === false) {
-            $path = $this->getShortestPathWithoutCache($fromTable, $toTable);
-            $this->cache->save($cacheKey, $path);
-        }
-
-        return $path;
+        return $this->fromCache($this->cachePrefix.'_shortest_'.$fromTable.'```'.$toTable, function() use ($fromTable, $toTable) {
+            return $this->getShortestPathWithoutCache($fromTable, $toTable);
+        });
     }
 
     /**
@@ -457,14 +452,9 @@ class SchemaAnalyzer
      * @return string|null
      */
     public function getParentTable($tableName) {
-        $cacheKey = $this->cachePrefix.'_parent_'.$tableName;
-        $parent = $this->cache->fetch($cacheKey);
-        if ($parent === false) {
-            $parent = $this->getParentTableWithoutCache($tableName);
-            $this->cache->save($cacheKey, $parent);
-        }
-
-        return $parent;
+        return $this->fromCache($this->cachePrefix.'_parent_'.$tableName, function() use ($tableName) {
+            return $this->getParentTableWithoutCache($tableName);
+        });
     }
 
     /**
@@ -494,14 +484,9 @@ class SchemaAnalyzer
      * @return string[]
      */
     public function getChildrenTables($tableName) {
-        $cacheKey = $this->cachePrefix.'_children_'.$tableName;
-        $parent = $this->cache->fetch($cacheKey);
-        if ($parent === false) {
-            $parent = $this->getChildrenTablesWithoutCache($tableName);
-            $this->cache->save($cacheKey, $parent);
-        }
-
-        return $parent;
+        return $this->fromCache($this->cachePrefix.'_children_'.$tableName, function() use ($tableName) {
+            return $this->getChildrenTablesWithoutCache($tableName);
+        });
     }
 
     /**
@@ -526,5 +511,22 @@ class SchemaAnalyzer
             }
         }
         return $children;
+    }
+
+    /**
+     * Returns an item from cache or computes it using $closure and puts it in cache
+     *
+     * @param string $key
+     * @param callable $closure
+     * @return mixed
+     */
+    private function fromCache($key, callable $closure) {
+        $item = $this->cache->fetch($key);
+        if ($item === false) {
+            $item = $closure();
+            $this->cache->save($key, $item);
+        }
+
+        return $item;
     }
 }
