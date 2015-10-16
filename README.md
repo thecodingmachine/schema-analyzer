@@ -61,11 +61,21 @@ Therefore, a "user" ID has to match a "contact", but a "contact" has not necessa
 
 You can use `SchemaAnalyzer` to detect parent / child relationships.
 
+- `getParentRelationship` takes a table name in parameter and returns the DBAL `ForeignKeyConstraint` representing
+  the relationship between this table and its parent.
+- `getChildrenRelationships` takes a table name in parameter and returns an array of DBAL `ForeignKeyConstraint` 
+  representing the relationship between this table and its children.
+  
+
 ```php
-$parent = $schemaAnalyzer->getParentTable("user");
+$parentKeyConstraint = $schemaAnalyzer->getParentRelationship("user");
+/* @var $parentKeyConstraint ForeignKeyConstraint */
+$parent = $parentKeyConstraint->getForeignTableName();
 // This will return the "contact" table (as a string)
 
-$children = $schemaAnalyzer->getChildrenTables("contact");
+$childrenKeyConstraints = $schemaAnalyzer->getChildrenRelationships("contact");
+/* @var $childrenKeyConstraints ForeignKeyConstraint[] */
+$children = array_map(function($item) { return $item->getLocalTableName(); }, $childrenKeyConstraints);
 // This will return an array of tables whose parent is contact: ["user"]
 ```
 

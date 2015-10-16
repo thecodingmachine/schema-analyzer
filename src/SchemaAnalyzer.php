@@ -461,12 +461,12 @@ class SchemaAnalyzer
      *
      * @param string $tableName
      *
-     * @return string|null
+     * @return ForeignKeyConstraint|null
      */
-    public function getParentTable($tableName)
+    public function getParentRelationship($tableName)
     {
         return $this->fromCache($this->cachePrefix.'_parent_'.$tableName, function () use ($tableName) {
-            return $this->getParentTableWithoutCache($tableName);
+            return $this->getParentRelationshipWithoutCache($tableName);
         });
     }
 
@@ -477,18 +477,18 @@ class SchemaAnalyzer
      *
      * @param string $tableName
      *
-     * @return string|null
+     * @return ForeignKeyConstraint|null
      */
-    private function getParentTableWithoutCache($tableName)
+    private function getParentRelationshipWithoutCache($tableName)
     {
         $table = $this->getSchema()->getTable($tableName);
         foreach ($table->getForeignKeys() as $fk) {
             if ($this->isInheritanceRelationship($fk)) {
-                return $fk->getForeignTableName();
+                return $fk;
             }
         }
 
-        return;
+        return null;
     }
 
     /**
@@ -498,12 +498,12 @@ class SchemaAnalyzer
      *
      * @param string $tableName
      *
-     * @return string[]
+     * @return ForeignKeyConstraint[]
      */
-    public function getChildrenTables($tableName)
+    public function getChildrenRelationships($tableName)
     {
         return $this->fromCache($this->cachePrefix.'_children_'.$tableName, function () use ($tableName) {
-            return $this->getChildrenTablesWithoutCache($tableName);
+            return $this->getChildrenRelationshipsWithoutCache($tableName);
         });
     }
 
@@ -514,9 +514,9 @@ class SchemaAnalyzer
      *
      * @param string $tableName
      *
-     * @return string[]
+     * @return ForeignKeyConstraint[]
      */
-    private function getChildrenTablesWithoutCache($tableName)
+    private function getChildrenRelationshipsWithoutCache($tableName)
     {
         $schema = $this->getSchema();
         $children = [];
@@ -526,7 +526,7 @@ class SchemaAnalyzer
             }
             foreach ($table->getForeignKeys() as $fk) {
                 if ($fk->getForeignTableName() === $tableName && $this->isInheritanceRelationship($fk)) {
-                    $children[] = $fk->getLocalTableName();
+                    $children[] = $fk;
                 }
             }
         }

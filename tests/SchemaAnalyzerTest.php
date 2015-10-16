@@ -473,10 +473,10 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $this->assertCount(1, $fks);
         $this->assertEquals('id', $fks[0]->getLocalColumns()[0]);
 
-        $this->assertEquals('contact', $schemaAnalyzer->getParentTable('user'));
-        $this->assertNull($schemaAnalyzer->getParentTable('contact'));
+        $this->assertEquals('contact', $schemaAnalyzer->getParentRelationship('user')->getForeignTableName());
+        $this->assertNull($schemaAnalyzer->getParentRelationship('contact'));
 
-        $this->assertEquals(['user'], $schemaAnalyzer->getChildrenTables('contact'));
-        $this->assertEquals([], $schemaAnalyzer->getChildrenTables('user'));
+        $this->assertEquals('user', $schemaAnalyzer->getChildrenRelationships('contact')[0]->getLocalTableName());
+        $this->assertEquals([], $schemaAnalyzer->getChildrenRelationships('user'));
     }
 }
