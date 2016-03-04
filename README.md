@@ -47,6 +47,15 @@ A **junction table** is a table:
 - that has **exactly 2 foreign keys**
 - that has **only 2 columns** (or **3 columns** if the one of those is an *autoincremented primary key*).
 
+There is an optional parameter you can use with `detectJunctionTables` that will automatically ignore any junction 
+table that is referenced by a foreign key of another table.
+
+```php
+// Get all junction tables except the ones that are references by a foreign key.
+$tables = $schemaAnalyzer->detectJunctionTables(true);
+```
+
+
 ## Detecting inheritance relationship between tables
 
 ### About inheritance relationships

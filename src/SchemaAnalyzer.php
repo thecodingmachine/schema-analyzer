@@ -89,15 +89,21 @@ class SchemaAnalyzer
      * - it has exactly 2 foreign keys
      * - it has only 2 columns (or 3 columns if the third one is an autoincremented primary key).
      *
+     * If $ignoreReferencedTables is true, junctions table that are pointed to by a foreign key of another
+     * table are ignored.
+     *
+     * @param bool $ignoreReferencedTables
      *
      * @return Table[]
      */
-    public function detectJunctionTables()
+    public function detectJunctionTables($ignoreReferencedTables = false)
     {
-        $junctionTablesKey = $this->cachePrefix.'_junctiontables';
+        $junctionTablesKey = $this->cachePrefix.'_junctiontables_'.($ignoreReferencedTables ? 'true' : 'false');
         $junctionTables = $this->cache->fetch($junctionTablesKey);
         if ($junctionTables === false) {
-            $junctionTables = array_filter($this->getSchema()->getTables(), [$this, 'isJunctionTable']);
+            $junctionTables = array_filter($this->getSchema()->getTables(), function (Table $table) use ($ignoreReferencedTables) {
+                return $this->isJunctionTable($table, $ignoreReferencedTables);
+            });
             $this->cache->save($junctionTablesKey, $junctionTables);
         }
 
@@ -111,14 +117,18 @@ class SchemaAnalyzer
      * - it must have exactly 2 foreign keys
      * - it must have only 2 columns (or 3 columns if the third one is an autoincremented primary key).
      *
+     * If $ignoreReferencedTables is true, junctions table that are pointed to by a foreign key of another
+     * table are ignored.
+     *
      * @param Table $table
+     * @param bool  $ignoreReferencedTables
      *
      * @return bool
      */
-    private function isJunctionTable(Table $table)
+    private function isJunctionTable(Table $table, $ignoreReferencedTables = false)
     {
         $foreignKeys = $table->getForeignKeys();
-        if (count($foreignKeys) != 2) {
+        if (count($foreignKeys) !== 2) {
             return false;
         }
 
@@ -133,24 +143,24 @@ class SchemaAnalyzer
             $pkColumns = [];
         }
 
-        if (count($pkColumns) == 1 && count($columns) == 2) {
+        if (count($pkColumns) === 1 && count($columns) === 2) {
             return false;
         }
 
-        if (count($pkColumns) != 1 && count($columns) == 3) {
+        if (count($pkColumns) !== 1 && count($columns) === 3) {
             return false;
         }
 
         $fkColumnNames = [];
         foreach ($foreignKeys as $foreignKey) {
             $fkColumns = $foreignKey->getColumns();
-            if (count($fkColumns) != 1) {
+            if (count($fkColumns) !== 1) {
                 return false;
             }
             $fkColumnNames[$fkColumns[0]] = true;
         }
 
-        if (count($columns) == 3) {
+        if (count($columns) === 3) {
             // Let's check that the third column (the ID is NOT a foreign key)
             if (isset($fkColumnNames[$pkColumns[0]])) {
                 return false;
@@ -162,7 +172,32 @@ class SchemaAnalyzer
             }
         }
 
+        if ($ignoreReferencedTables && $this->isTableReferenced($table)) {
+            return false;
+        }
+
         return true;
+    }
+
+    /**
+     * Returns true if the table $table is referenced by another table.
+     *
+     * @param Table $table
+     *
+     * @return bool
+     */
+    private function isTableReferenced(Table $table)
+    {
+        $tableName = $table->getName();
+        foreach ($this->getSchema()->getTables() as $tableIter) {
+            foreach ($tableIter->getForeignKeys() as $fk) {
+                if ($fk->getForeignTableName() === $tableName) {
+                    return true;
+                }
+            }
+        }
+
+        return false;
     }
 
     /**
@@ -488,7 +523,7 @@ class SchemaAnalyzer
             }
         }
 
-        return null;
+        return;
     }
 
     /**
