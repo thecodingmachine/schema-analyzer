@@ -206,6 +206,9 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $junctionTables = $schemaAnalyzer->detectJunctionTables();
 
         $this->assertCount(0, $junctionTables);
+
+        $junctionTables = $schemaAnalyzer->detectJunctionTables(true);
+        $this->assertCount(0, $junctionTables);
     }
 
     public function testJointureTableDetectionWithForeignKeyPointingOnJointureTable()
