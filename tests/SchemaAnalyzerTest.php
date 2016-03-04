@@ -208,6 +208,33 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $this->assertCount(0, $junctionTables);
     }
 
+    public function testJointureTableDetectionWithForeignKeyPointingOnJointureTable()
+    {
+        $schema = $this->getBaseSchema();
+
+        $role_right = $schema->createTable('role_right');
+        $role_right->addColumn('id', 'integer', array('unsigned' => true, 'autoincrement' => true));
+        $role_right->addColumn('role_id', 'integer', array('unsigned' => true));
+        $role_right->addColumn('right_id', 'integer', array('unsigned' => true));
+
+        $role_right->addForeignKeyConstraint($schema->getTable('role'), array('role_id'), array('id'), array('onUpdate' => 'CASCADE'));
+        $role_right->addForeignKeyConstraint($schema->getTable('right'), array('right_id'), array('id'), array('onUpdate' => 'CASCADE'));
+        $role_right->setPrimaryKey(['id']);
+
+        $other_table = $schema->createTable('other_table');
+        $other_table->addColumn('id', 'integer', array('unsigned' => true, 'autoincrement' => true));
+        $other_table->addColumn('role_right_id', 'integer', array('unsigned' => true));
+        $other_table->addForeignKeyConstraint($schema->getTable('role_right'), array('role_right_id'), array('id'), array('onUpdate' => 'CASCADE'));
+        $other_table->setPrimaryKey(['id']);
+
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
+        $junctionTables = $schemaAnalyzer->detectJunctionTables();
+        $this->assertCount(1, $junctionTables);
+
+        $junctionTables = $schemaAnalyzer->detectJunctionTables(true);
+        $this->assertCount(0, $junctionTables);
+    }
+
     public function testShortestPathInJointure()
     {
         $schema = $this->getBaseSchema();
@@ -283,7 +310,7 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $schemaAnalyzer->detectJunctionTables();
 
         $this->assertNotFalse($cache->fetch('mykey_schema'));
-        $this->assertNotFalse($cache->fetch('mykey_junctiontables'));
+        $this->assertNotFalse($cache->fetch('mykey_junctiontables_false'));
         $r1 = $schemaAnalyzer->getShortestPath('role_right', 'role');
         $r2 = $schemaAnalyzer->getShortestPath('role_right', 'role');
         $this->assertTrue($r1 === $r2);
