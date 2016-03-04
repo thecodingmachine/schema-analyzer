@@ -98,10 +98,10 @@ class SchemaAnalyzer
      */
     public function detectJunctionTables($ignoreReferencedTables = false)
     {
-        $junctionTablesKey = $this->cachePrefix.'_junctiontables_'.($ignoreReferencedTables?'true':'false');
+        $junctionTablesKey = $this->cachePrefix.'_junctiontables_'.($ignoreReferencedTables ? 'true' : 'false');
         $junctionTables = $this->cache->fetch($junctionTablesKey);
         if ($junctionTables === false) {
-            $junctionTables = array_filter($this->getSchema()->getTables(), function(Table $table) use ($ignoreReferencedTables) {
+            $junctionTables = array_filter($this->getSchema()->getTables(), function (Table $table) use ($ignoreReferencedTables) {
                 return $this->isJunctionTable($table, $ignoreReferencedTables);
             });
             $this->cache->save($junctionTablesKey, $junctionTables);
@@ -121,7 +121,7 @@ class SchemaAnalyzer
      * table are ignored.
      *
      * @param Table $table
-     * @param bool $ignoreReferencedTables
+     * @param bool  $ignoreReferencedTables
      *
      * @return bool
      */
@@ -183,6 +183,7 @@ class SchemaAnalyzer
      * Returns true if the table $table is referenced by another table.
      *
      * @param Table $table
+     *
      * @return bool
      */
     private function isTableReferenced(Table $table)
@@ -195,6 +196,7 @@ class SchemaAnalyzer
                 }
             }
         }
+
         return false;
     }
 
@@ -521,7 +523,7 @@ class SchemaAnalyzer
             }
         }
 
-        return null;
+        return;
     }
 
     /**
