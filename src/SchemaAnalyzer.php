@@ -7,6 +7,7 @@ use Doctrine\Common\Cache\VoidCache;
 use Doctrine\DBAL\Schema\AbstractSchemaManager;
 use Doctrine\DBAL\Schema\ForeignKeyConstraint;
 use Doctrine\DBAL\Schema\Schema;
+use Doctrine\DBAL\Schema\SchemaException;
 use Doctrine\DBAL\Schema\Table;
 use Fhaculty\Graph\Edge\Base;
 use Fhaculty\Graph\Graph;
@@ -229,6 +230,9 @@ class SchemaAnalyzer
      */
     private function getShortestPathWithoutCache($fromTable, $toTable)
     {
+        $this->checkTableExists($fromTable);
+        $this->checkTableExists($toTable);
+
         $graph = $this->buildSchemaGraph();
 
         try {
@@ -276,6 +280,15 @@ class SchemaAnalyzer
         }
 
         return $foreignKeys;
+    }
+
+    private function checkTableExists($tableName)
+    {
+        try {
+            $this->getSchema()->getTable($tableName);
+        } catch (SchemaException $e) {
+            throw SchemaAnalyzerTableNotFoundException::tableNotFound($tableName, $this->schema, $e);
+        }
     }
 
     private function buildSchemaGraph()

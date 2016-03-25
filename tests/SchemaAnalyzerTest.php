@@ -509,4 +509,16 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('user', $schemaAnalyzer->getChildrenRelationships('contact')[0]->getLocalTableName());
         $this->assertEquals([], $schemaAnalyzer->getChildrenRelationships('user'));
     }
+
+    /**
+     * @expectedException \Mouf\Database\SchemaAnalyzer\SchemaAnalyzerTableNotFoundException
+     * @expectedExceptionMessage Could not find table 'rights'. Did you mean 'right'?
+     */
+    public function testWringTableName()
+    {
+        $schemaManager = $this->getCompleteSchemaManager();
+
+        $schemaAnalyzer = new SchemaAnalyzer($schemaManager);
+        $junctionTables = $schemaAnalyzer->getShortestPath('role', 'rights');
+    }
 }
