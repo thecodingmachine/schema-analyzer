@@ -18,6 +18,7 @@ class SchemaAnalyzerTableNotFoundException extends SchemaAnalyzerException
                 $closestTableName = $testedTableName;
             }
         }
+
         return new self("Could not find table '$tableName'. Did you mean '$closestTableName'?", 0, $previousException);
     }
 }

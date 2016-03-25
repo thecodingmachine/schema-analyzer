@@ -282,7 +282,6 @@ class SchemaAnalyzer
         return $foreignKeys;
     }
 
-
     private function checkTableExists($tableName)
     {
         try {
