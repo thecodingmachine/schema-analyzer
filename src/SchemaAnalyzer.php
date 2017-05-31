@@ -302,7 +302,8 @@ class SchemaAnalyzer
 
         // Then, let's create all the edges
         foreach ($this->getSchema()->getTables() as $table) {
-            foreach ($table->getForeignKeys() as $fk) {
+            $fks = $this->removeDuplicates($table->getForeignKeys());
+            foreach ($fks as $fk) {
                 // Create an undirected edge, with weight = 1
                 $edge = $graph->getVertex($table->getName())->createEdge($graph->getVertex($fk->getForeignTableName()));
                 if (isset($this->alteredCosts[$fk->getLocalTable()->getName()][implode(',', $fk->getLocalColumns())])) {
@@ -338,6 +339,22 @@ class SchemaAnalyzer
         }
 
         return $graph;
+    }
+
+    /**
+     * Remove duplicate foreign keys (assumes that all foreign yes are from the same local table).
+     *
+     * @param ForeignKeyConstraint[] $foreignKeys
+     * @return ForeignKeyConstraint[]
+     */
+    private function removeDuplicates(array $foreignKeys)
+    {
+        $fks = [];
+        foreach ($foreignKeys as $foreignKey) {
+            $fks[implode('__`__', $foreignKey->getLocalColumns())] = $foreignKey;
+        }
+
+        return array_values($fks);
     }
 
     /**
@@ -572,7 +589,8 @@ class SchemaAnalyzer
             if ($table->getName() === $tableName) {
                 continue;
             }
-            foreach ($table->getForeignKeys() as $fk) {
+            $fks = $this->removeDuplicates($table->getForeignKeys());
+            foreach ($fks as $fk) {
                 if ($fk->getForeignTableName() === $tableName && $this->isInheritanceRelationship($fk)) {
                     $children[] = $fk;
                 }
