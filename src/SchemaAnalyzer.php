@@ -126,7 +126,7 @@ class SchemaAnalyzer
      *
      * @return bool
      */
-    private function isJunctionTable(Table $table, $ignoreReferencedTables = false)
+    public function isJunctionTable(Table $table, $ignoreReferencedTables = false)
     {
         $foreignKeys = $table->getForeignKeys();
         if (count($foreignKeys) !== 2) {
