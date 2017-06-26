@@ -510,6 +510,46 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals([], $schemaAnalyzer->getChildrenRelationships('user'));
     }
 
+    public function testChainedJunctionTables()
+    {
+        $schema = $this->getBaseSchema();
+
+        $role_right = $schema->createTable('role_right');
+        $role_right->addColumn('role_id', 'integer', array('unsigned' => true));
+        $role_right->addColumn('right_id', 'integer', array('unsigned' => true));
+        $role_right->addForeignKeyConstraint($schema->getTable('role'), array('role_id'), array('id'), array('onUpdate' => 'CASCADE'), 'right_roles');
+        $role_right->addForeignKeyConstraint($schema->getTable('right'), array('right_id'), array('id'), array('onUpdate' => 'CASCADE'), 'role_rights');
+        $role_right->setPrimaryKey(['role_id', 'right_id']);
+
+        $user = $schema->createTable('user');
+        $user->addColumn('id', 'integer', array('unsigned' => true));
+        $user->addColumn('name', 'string', array('length' => 32));
+        $user->setPrimaryKey(['id']);
+
+        $user_role = $schema->createTable('user_role');
+        $user_role->addColumn('user_id', 'integer', array('unsigned' => true));
+        $user_role->addColumn('role_id', 'integer', array('unsigned' => true));
+        $user_role->addForeignKeyConstraint($schema->getTable('user'), array('user_id'), array('id'), array('onUpdate' => 'CASCADE'), 'role_users');
+        $user_role->addForeignKeyConstraint($schema->getTable('role'), array('role_id'), array('id'), array('onUpdate' => 'CASCADE'), 'user_roles');
+        $user_role->setPrimaryKey(['user_id', 'role_id']);
+
+        $schemaAnalyzer = new SchemaAnalyzer(new StubSchemaManager($schema));
+
+        $fks = $schemaAnalyzer->getShortestPath('user', 'right');
+        $this->assertCount(4, $fks);
+        $this->assertEquals('role_users', $fks[0]->getName());
+        $this->assertEquals('user_roles', $fks[1]->getName());
+        $this->assertEquals('right_roles', $fks[2]->getName());
+        $this->assertEquals('role_rights', $fks[3]->getName());
+
+        $fks = $schemaAnalyzer->getShortestPath('right', 'user');
+        $this->assertCount(4, $fks);
+        $this->assertEquals('role_rights', $fks[0]->getName());
+        $this->assertEquals('right_roles', $fks[1]->getName());
+        $this->assertEquals('user_roles', $fks[2]->getName());
+        $this->assertEquals('role_users', $fks[3]->getName());
+    }
+
     /**
      * @expectedException \Mouf\Database\SchemaAnalyzer\SchemaAnalyzerTableNotFoundException
      * @expectedExceptionMessage Could not find table 'rights'. Did you mean 'right'?
