@@ -268,9 +268,11 @@ class SchemaAnalyzer
                 if ($fk->getForeignTableName() == $currentTable) {
                     $foreignKeys[] = $fk;
                     $foreignKeys[] = $junctionFks[1];
+                    $currentTable = $junctionFks[1]->getForeignTableName();
                 } else {
                     $foreignKeys[] = $junctionFks[1];
                     $foreignKeys[] = $fk;
+                    $currentTable = $fk->getForeignTableName();
                 }
             } else {
                 // @codeCoverageIgnoreStart
