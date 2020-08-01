@@ -139,7 +139,7 @@ class SchemaAnalyzer
         }
 
         if ($table->hasPrimaryKey()) {
-            $pkColumns = $table->getPrimaryKeyColumns();
+            $pkColumns = $table->getPrimaryKey()->getUnquotedColumns();
         } else {
             $pkColumns = [];
         }
@@ -513,8 +513,8 @@ class SchemaAnalyzer
         if (!$fk->getLocalTable()->hasPrimaryKey()) {
             return false;
         }
-        $fkColumnNames = $fk->getLocalColumns();
-        $pkColumnNames = $fk->getLocalTable()->getPrimaryKeyColumns();
+        $fkColumnNames = $fk->getUnquotedLocalColumns();
+        $pkColumnNames = $fk->getLocalTable()->getPrimaryKey()->getUnquotedColumns();
 
         sort($fkColumnNames);
         sort($pkColumnNames);
