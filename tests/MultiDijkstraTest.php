@@ -5,8 +5,10 @@ namespace Mouf\Database\SchemaAnalyzer;
 use Fhaculty\Graph\Graph;
 use Fhaculty\Graph\Vertex;
 use Fhaculty\Graph\Edge;
+use Fhaculty\Graph\Exception\UnexpectedValueException;
+use PHPUnit\Framework\TestCase;
 
-class MultiDijkstraTest extends \PHPUnit_Framework_TestCase
+class MultiDijkstraTest extends TestCase
 {
     public function testDijkstra()
     {
@@ -47,9 +49,6 @@ class MultiDijkstraTest extends \PHPUnit_Framework_TestCase
         $this->assertTrue($this->hasVertex($edges[2], $h));
     }
 
-    /**
-     * @expectedException \Mouf\Database\SchemaAnalyzer\MultiDijkstraAmbiguityException
-     */
     public function testDijkstraAmbiguity()
     {
         $graph = new Graph();
@@ -66,12 +65,10 @@ class MultiDijkstraTest extends \PHPUnit_Framework_TestCase
 
         $predecessors = MultiDijkstra::findShortestPaths($a, $d);
 
+        $this->expectException(MultiDijkstraAmbiguityException::class);
         MultiDijkstra::getCheapestPathFromPredecesArray($a, $d, $predecessors);
     }
 
-    /**
-     * @expectedException \Mouf\Database\SchemaAnalyzer\MultiDijkstraNoPathException
-     */
     public function testDijkstraNoPath()
     {
         $graph = new Graph();
@@ -84,12 +81,10 @@ class MultiDijkstraTest extends \PHPUnit_Framework_TestCase
         $a->createEdge($b)->setWeight(12);
         $a->createEdge($c)->setWeight(42);
 
+        $this->expectException(MultiDijkstraNoPathException::class);
         MultiDijkstra::findShortestPaths($a, $d);
     }
 
-    /**
-     * @expectedException \Fhaculty\Graph\Exception\UnexpectedValueException
-     */
     public function testDijkstraNegativeWeight()
     {
         $graph = new Graph();
@@ -99,6 +94,7 @@ class MultiDijkstraTest extends \PHPUnit_Framework_TestCase
 
         $a->createEdge($b)->setWeight(-12);
 
+        $this->expectException(UnexpectedValueException::class);
         MultiDijkstra::findShortestPaths($a, $b);
     }
 

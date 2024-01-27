@@ -4,8 +4,9 @@ namespace Mouf\Database\SchemaAnalyzer;
 
 use Doctrine\Common\Cache\ArrayCache;
 use Doctrine\DBAL\Schema\Schema;
+use PHPUnit\Framework\TestCase;
 
-class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
+class SchemaAnalyzerTest extends TestCase
 {
     /**
      * Returns a base schema with a role and a right table.
@@ -294,12 +295,10 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('role', $fks[0]->getForeignTableName());
     }
 
-    /**
-     * @expectedException \Mouf\Database\SchemaAnalyzer\SchemaAnalyzerException
-     */
     public function testWrongConstructor()
     {
         $schema = $this->getBaseSchema();
+        $this->expectException(SchemaAnalyzerException::class);
         new SchemaAnalyzer(new StubSchemaManager($schema), new ArrayCache());
     }
 
@@ -347,8 +346,8 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         try {
             $schemaAnalyzer->getShortestPath('role', 'right');
         } catch (ShortestPathAmbiguityException $e) {
-            $this->assertContains('role <=(role_right)=> right', $e->getMessage());
-            $this->assertContains('role <=(role_right2)=> right', $e->getMessage());
+            $this->assertStringContainsString('role <=(role_right)=> right', $e->getMessage());
+            $this->assertStringContainsString('role <=(role_right2)=> right', $e->getMessage());
             $exceptionTriggered = true;
         }
         $this->assertTrue($exceptionTriggered);
@@ -357,8 +356,8 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         try {
             $schemaAnalyzer->getShortestPath('right', 'role');
         } catch (ShortestPathAmbiguityException $e) {
-            $this->assertContains('right <=(role_right)=> role', $e->getMessage());
-            $this->assertContains('right <=(role_right2)=> role', $e->getMessage());
+            $this->assertStringContainsString('right <=(role_right)=> role', $e->getMessage());
+            $this->assertStringContainsString('right <=(role_right2)=> role', $e->getMessage());
             $exceptionTriggered = true;
         }
         $this->assertTrue($exceptionTriggered);
@@ -380,8 +379,8 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         try {
             $schemaAnalyzer->getShortestPath('role', 'right');
         } catch (ShortestPathAmbiguityException $e) {
-            $this->assertContains('role <--(role_id)-- right', $e->getMessage());
-            $this->assertContains('role <--(role_id2)-- right', $e->getMessage());
+            $this->assertStringContainsString('role <--(role_id)-- right', $e->getMessage());
+            $this->assertStringContainsString('role <--(role_id2)-- right', $e->getMessage());
             $exceptionTriggered = true;
         }
         $this->assertTrue($exceptionTriggered);
@@ -390,8 +389,8 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         try {
             $schemaAnalyzer->getShortestPath('right', 'role');
         } catch (ShortestPathAmbiguityException $e) {
-            $this->assertContains('right --(role_id)--> role', $e->getMessage());
-            $this->assertContains('right --(role_id2)--> role', $e->getMessage());
+            $this->assertStringContainsString('right --(role_id)--> role', $e->getMessage());
+            $this->assertStringContainsString('right --(role_id2)--> role', $e->getMessage());
             $exceptionTriggered = true;
         }
         $this->assertTrue($exceptionTriggered);
@@ -550,15 +549,12 @@ class SchemaAnalyzerTest extends \PHPUnit_Framework_TestCase
         $this->assertEquals('role_users', $fks[3]->getName());
     }
 
-    /**
-     * @expectedException \Mouf\Database\SchemaAnalyzer\SchemaAnalyzerTableNotFoundException
-     * @expectedExceptionMessage Could not find table 'rights'. Did you mean 'right'?
-     */
     public function testWringTableName()
     {
         $schemaManager = $this->getCompleteSchemaManager();
 
         $schemaAnalyzer = new SchemaAnalyzer($schemaManager);
+        $this->expectException(SchemaAnalyzerTableNotFoundException::class, "Could not find table 'rights'. Did you mean 'right'?");
         $junctionTables = $schemaAnalyzer->getShortestPath('role', 'rights');
     }
 }

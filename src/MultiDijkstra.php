@@ -146,7 +146,7 @@ class MultiDijkstra
             if (count($predecessorEdges) > 1) {
                 throw new MultiDijkstraAmbiguityException("There are many possible shortest paths to link vertex '".$startVertex->getId()."' to '".$endVertex->getId()."'");
             }
-            /* @var $edge \Fhaculty\Graph\Edge\Base */
+            /** @var $edge \Fhaculty\Graph\Edge\Base */
             $edge = $predecessorEdges[0];
             $edges[] = $edge;
             if ($currentVertex === $edge->getVerticesStart()->getVertexFirst()) {
