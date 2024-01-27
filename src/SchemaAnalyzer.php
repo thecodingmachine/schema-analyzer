@@ -169,7 +169,7 @@ class SchemaAnalyzer
 
             // Let's check that the primary key is autoincremented
             $pkColumn = $table->getColumn($pkColumns[0]);
-            if (!$pkColumn->getAutoincrement() && strpos($pkColumn->getComment(), '@Autoincrement') === false) {
+            if (!$pkColumn->getAutoincrement() && strpos($pkColumn->getComment() ?? '', '@Autoincrement') === false) {
                 return false;
             }
         }
