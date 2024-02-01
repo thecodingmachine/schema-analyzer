@@ -554,7 +554,8 @@ class SchemaAnalyzerTest extends TestCase
         $schemaManager = $this->getCompleteSchemaManager();
 
         $schemaAnalyzer = new SchemaAnalyzer($schemaManager);
-        $this->expectException(SchemaAnalyzerTableNotFoundException::class, "Could not find table 'rights'. Did you mean 'right'?");
+        $this->expectException(SchemaAnalyzerTableNotFoundException::class);
+        $this->expectExceptionMessage("Could not find table 'rights'. Did you mean 'right'?");
         $junctionTables = $schemaAnalyzer->getShortestPath('role', 'rights');
     }
 }
