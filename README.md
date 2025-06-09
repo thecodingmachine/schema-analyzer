@@ -21,7 +21,7 @@ You can install this package through Composer:
 ```json
 {
     "require": {
-        "mouf/schema-analyzer": "~1.0"
+        "mouf/schema-analyzer": "^2.0"
     }
 }
 ```
