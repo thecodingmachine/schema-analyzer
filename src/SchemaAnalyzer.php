@@ -138,8 +138,9 @@ class SchemaAnalyzer
             return false;
         }
 
-        if ($table->hasPrimaryKey()) {
-            $pkColumns = $table->getPrimaryKey()->getUnquotedColumns();
+        $primaryKey = $table->getPrimaryKey();
+        if ($primaryKey) {
+            $pkColumns = $primaryKey->getUnquotedColumns();
         } else {
             $pkColumns = [];
         }
@@ -154,7 +155,7 @@ class SchemaAnalyzer
 
         $fkColumnNames = [];
         foreach ($foreignKeys as $foreignKey) {
-            $fkColumns = $foreignKey->getColumns();
+            $fkColumns = $foreignKey->getLocalColumns();
             if (count($fkColumns) !== 1) {
                 return false;
             }
@@ -309,15 +310,15 @@ class SchemaAnalyzer
             foreach ($fks as $fk) {
                 // Create an undirected edge, with weight = 1
                 $edge = $graph->getVertex($table->getName())->createEdge($graph->getVertex($fk->getForeignTableName()));
-                if (isset($this->alteredCosts[$fk->getLocalTable()->getName()][implode(',', $fk->getLocalColumns())])) {
-                    $cost = $this->alteredCosts[$fk->getLocalTable()->getName()][implode(',', $fk->getLocalColumns())];
-                } elseif ($this->isInheritanceRelationship($fk)) {
+                if (isset($this->alteredCosts[$table->getName()][implode(',', $fk->getLocalColumns())])) {
+                    $cost = $this->alteredCosts[$table->getName()][implode(',', $fk->getLocalColumns())];
+                } elseif ($this->isInheritanceRelationship($table, $fk)) {
                     $cost = self::$WEIGHT_INHERITANCE_FK;
                 } else {
                     $cost = self::$WEIGHT_FK;
                 }
-                if (isset($this->alteredTableCosts[$fk->getLocalTable()->getName()])) {
-                    $cost *= $this->alteredTableCosts[$fk->getLocalTable()->getName()];
+                if (isset($this->alteredTableCosts[$table->getName()])) {
+                    $cost *= $this->alteredTableCosts[$table->getName()];
                 }
 
                 $edge->setWeight($cost);
@@ -503,18 +504,15 @@ class SchemaAnalyzer
     /**
      * Returns true if this foreign key represents an inheritance relationship,
      * i.e. if this foreign key is based on a primary key.
-     *
-     * @param ForeignKeyConstraint $fk
-     *
-     * @return true
      */
-    private function isInheritanceRelationship(ForeignKeyConstraint $fk)
+    private function isInheritanceRelationship(Table $localTable, ForeignKeyConstraint $fk): bool
     {
-        if (!$fk->getLocalTable()->hasPrimaryKey()) {
+        $primaryKey = $localTable->getPrimaryKey();
+        if ($primaryKey === null) {
             return false;
         }
         $fkColumnNames = $fk->getUnquotedLocalColumns();
-        $pkColumnNames = $fk->getLocalTable()->getPrimaryKey()->getUnquotedColumns();
+        $pkColumnNames = $primaryKey->getUnquotedColumns();
 
         sort($fkColumnNames);
         sort($pkColumnNames);
@@ -551,12 +549,12 @@ class SchemaAnalyzer
     {
         $table = $this->getSchema()->getTable($tableName);
         foreach ($table->getForeignKeys() as $fk) {
-            if ($this->isInheritanceRelationship($fk)) {
+            if ($this->isInheritanceRelationship($table, $fk)) {
                 return $fk;
             }
         }
 
-        return;
+        return null;
     }
 
     /**
@@ -594,7 +592,7 @@ class SchemaAnalyzer
             }
             $fks = $this->removeDuplicates($table->getForeignKeys());
             foreach ($fks as $fk) {
-                if ($fk->getForeignTableName() === $tableName && $this->isInheritanceRelationship($fk)) {
+                if ($fk->getForeignTableName() === $tableName && $this->isInheritanceRelationship($table, $fk)) {
                     $children[] = $fk;
                 }
             }
